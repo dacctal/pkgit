@@ -1,0 +1,406 @@
+#!/usr/bin/env bash
+# pkgit - package it!
+set -euo pipefail
+
+VERSION="0.0.1"
+
+ROOT="/var/lib/pkgit"
+BIN_DIR="/usr/local/bin"
+
+REPOS_DIR="$ROOT/repos"
+PKGS_DIR="$ROOT/pkgs"
+BUILD_DIR="$ROOT/build"
+
+PKGIT_ESSENTIAL_DIRS=(
+	"$ROOT"
+	"$REPOS_DIR"
+	"$PKGS_DIR"
+	"$BUILD_DIR"
+	"$BIN_DIR"
+)
+
+mkdir_cmd() {
+	local dirs=("$@")
+	mkdir -p "${dirs[@]}"
+}
+
+for dir in "${PKGIT_ESSENTIAL_DIRS[@]}"; do
+	if [ ! -d "$dir" ]; then
+		echo "[pkgit] your system is missing some essential upsm directories."
+		echo "[pkgit] auto-generating upsm directories..."
+		mkdir_cmd "$dir"
+	fi
+done
+
+# --- Helpers ---
+update_latest_symlink() {
+	local pkg="$1" ver="$2"
+	local pkgdir="$REPOS_DIR/$pkg"
+	mkdir_cmd "$pkgdir" || return 1
+	ln -sfn "$ver" "$pkgdir/LATEST.tmp" && mv -f "$pkgdir/LATEST.tmp" "$pkgdir/LATEST"
+}
+
+# --- Auto-repo generator ---
+create_repo_from_git() {
+	local url="$1"
+	local pkg=$(basename "$url" .git | tr '[:upper:]' '[:lower:]')
+	local pkgdir="$REPOS_DIR/$pkg"
+	mkdir -p "$pkgdir"
+
+	echo "[pkgit] Creating repo(s) for $pkg from $url"
+
+	# Fetch tags without full clone, prefer numeric versions
+	local tags
+	tags=$(git ls-remote --tags --refs "$url" 2>/dev/null | awk -F/ '{print $3}' | grep -E '^[0-9]+(\.[0-9]+)*$|^v[0-9]+(\.[0-9]+)*$' | sort -Vr) || {
+		echo "[pkgit] Warning: Could not fetch tags from $url" >&2
+			tags="HEAD"
+		}
+	[[ -n "$tags" ]] || tags="HEAD"
+
+	for tag in $tags; do
+		local verdir="$pkgdir/$tag"
+		mkdir -p "$verdir"
+
+		cat >"$verdir/build.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "\${BUILD_DIR:=\$BUILD_DIR}"
+: "\${PKGS_DIR:=\$PKGS_DIR}"
+: "\${BIN_DIR:=\$BIN_DIR}"
+
+PKGIT_GIT_URL="$url"
+pkg="$pkg"
+tag="$tag"
+
+PKGIT_DEPS=()
+
+# Define source directory first
+SRC_DIR="\$BUILD_DIR/\$pkg-\$tag"
+rm -rf "\$SRC_DIR"
+
+install_dependencies() {
+    for dep in "\${PKGIT_DEPS[@]:-}"; do
+	[[ -z "\$dep" ]] && continue
+	echo "[pkgit] Installing dependency: \$dep"
+	pkgit i "\$dep"
+done
+}
+
+install_bins() {
+    [[ -d "\$PKGS_DIR/\$pkg/\$tag/bin" ]] || { echo "[pkgit] No bin/ directory, skipping executable symlinks"; return; }
+    find "\$PKGS_DIR/\$pkg/\$tag/bin" -type f -executable -exec ln -sf {} "\$BIN_DIR" \;
+}
+
+build() {
+    cd "\$SRC_DIR"
+
+    if [[ -f configure.ac || -f configure ]]; then
+	autoreconf -fi || true
+	./configure --prefix="\$PKGS_DIR/\$pkg/\$tag"
+	make -j\$(nproc)
+	make install
+	install_bins
+elif [[ -f meson.build ]]; then
+	meson setup build --prefix="\$PKGS_DIR/\$pkg/\$tag"
+	ninja -C build
+	ninja -C build install
+	install_bins
+elif [[ -f CMakeLists.txt ]]; then
+	mkdir -p build
+	cd build
+	cmake -DCMAKE_INSTALL_PREFIX="\$PKGS_DIR/\$pkg/\$tag" ..
+	cmake --build .
+	cmake --install .
+	install_bins
+elif [[ -f Makefile || -f GNUmakefile ]]; then
+	make -j\$(nproc)
+	make PREFIX="\$PKGS_DIR/\$pkg/\$tag" install
+	install_bins
+elif [[ -f Cargo.toml ]]; then
+	cargo build --release
+	mkdir -p "\$PKGS_DIR/\$pkg/\$tag/bin"
+	find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "\$PKGS_DIR/\$pkg/\$tag/bin/" \;
+	install_bins
+elif [[ -f build.sh ]]; then
+	chmod +x build.sh
+	./build.sh
+	mkdir -p "\$PKGS_DIR/\$pkg/\$tag/bin"
+	find . -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "\$PKGS_DIR/\$pkg/\$tag/bin/" \;
+	install_bins
+else
+	echo "[pkgit] No recognized build system in \$SRC_DIR"
+	exit 1
+    fi
+}
+
+if [[ "\$tag" == "HEAD" ]]; then
+    git -c advice.detachedHead=false clone --depth 1 "\$PKGIT_GIT_URL" "\$SRC_DIR"
+else
+    git -c advice.detachedHead=false clone --branch "\$tag" --depth 1 "\$PKGIT_GIT_URL" "\$SRC_DIR"
+fi
+
+cd "\$SRC_DIR"
+install_dependencies
+build
+install_bins
+EOF
+
+chmod +x "$verdir/build.sh"
+echo "[pkgit] Created repo for $pkg $tag at $verdir"
+done
+
+# Update LATEST
+local latest_tag
+latest_tag=$(echo "$tags" | head -n1)
+update_latest_symlink "$pkg" "$latest_tag"
+echo "[pkgit] LATEST symlink updated to $latest_tag"
+}
+
+store_link() {
+	local link="$1"
+
+	touch $REPOS_DIR/repos
+	echo "$link\n" >>$REPOS_DIR/repos
+}
+
+# --- Install package ---
+install_pkg() {
+	local input="$1"
+	local pkg ver
+
+	if [[ "$input" == *:* ]]; then
+		pkg="${input%%:*}"
+		ver="${input##*:}"
+	else
+		pkg="$input"
+		ver="LATEST"
+	fi
+	pkg=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
+
+	local repodir="$REPOS_DIR/$pkg/$ver"
+	if [[ "$ver" == "LATEST" ]]; then
+		if [[ -L "$REPOS_DIR/$pkg/LATEST" ]]; then
+			repodir=$(readlink -f "$REPOS_DIR/$pkg/LATEST")
+		else
+			echo "[pkgit] No LATEST version for $pkg"
+			return 1
+		fi
+	fi
+	[[ -f "$repodir/build.sh" ]] || {
+		echo "[pkgit] No build.sh for $pkg:$ver"
+			return 1
+		}
+
+	echo "[pkgit] Installing $pkg:$ver ..."
+
+	local build_dir="$BUILD_DIR/${pkg}-${ver}-$(date +%s)"
+	rm -rf "$build_dir"
+	mkdir -p "$build_dir"
+	export ROOT PKGS_DIR BIN_DIR BUILD_DIR="$build_dir"
+
+	bash "$repodir/build.sh" || {
+		echo "[pkgit] Build FAILED for $pkg:$ver"
+			return 1
+		}
+	echo "[pkgit] Build executed for $pkg:$ver"
+
+	# Mark LATEST and symlink binaries if present
+	local installed_dir="$PKGS_DIR/$pkg/$ver"
+	[[ -d "$installed_dir" ]] || installed_dir=$(find "$PKGS_DIR/$pkg" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)
+	if [[ -d "$installed_dir" ]]; then
+		ln -sfn "$installed_dir" "$PKGS_DIR/$pkg/LATEST"
+		echo "[pkgit] Installed LATEST for $pkg -> $(basename "$installed_dir")"
+
+		if [[ -d "$installed_dir/bin" ]]; then
+			mkdir -p "$BIN_DIR"
+			for f in "$installed_dir/bin/"*; do [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$BIN_DIR/$(basename "$f")"; done
+			echo "[pkgit] Symlinked binaries for $pkg -> $BIN_DIR"
+		fi
+	else
+		echo "[pkgit] WARNING: no installed files found for $pkg:$ver"
+	fi
+
+	echo "[pkgit] Finished install of $pkg:$ver"
+}
+
+# --- Remove package ---
+remove_pkg() {
+	local pkg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+	[[ -z "$pkg" ]] && {
+		echo "[pkgit] No package specified"
+			return 1
+		}
+	[[ -d "$PKGS_DIR/$pkg" ]] || {
+		echo "[pkgit] Package $pkg not installed"
+			return 1
+		}
+
+		# Remove symlinks from BIN_DIR
+		if [[ -d "$PKGS_DIR/$pkg/LATEST/bin" ]]; then
+			for f in "$PKGS_DIR/$pkg/LATEST/bin/"*; do
+				[[ -f "$f" ]] && rm -f "$BIN_DIR/$(basename "$f")"
+			done
+		fi
+
+		rm -rf "$PKGS_DIR/$pkg" "$REPOS_DIR/$pkg" "$BUILD_DIR/$pkg-"*
+		echo "[pkgit] Removed $pkg"
+	}
+
+search_pkgs() {
+	echo "🔍 searching in: $REPOS_DIR"
+	local search_terms="${@:2}"
+	echo "🔍 for: $search_terms"
+	echo ""
+	for term in $search_terms; do
+		ls -1 "$REPOS_DIR" | grep -F "$term"
+	done
+}
+#search_pkgs() {
+#    # Validate the directory exists
+#    if [[ ! -d "$REPOS_DIR" ]]; then
+#        echo "Error: Directory $REPOS_DIR does not exist."
+#        return 1
+#    fi
+#
+#    # Extract search terms as an array to handle spaces safely
+#    local search_terms=("${@:2}")
+#
+#    # Debug: Output the directory and search terms
+#    echo "🔍 Searching in: $REPOS_DIR"
+#    echo "🔎 For terms: ${search_terms[@]}"
+#
+#    # Loop through each term and search in the directory
+#    for term in "${search_terms[@]}"; do
+#        if [[ -z "$term" ]]; then
+#            echo "⚠️ Empty search term skipped."
+#            continue
+#        fi
+#
+#        # List files one per line and filter with grep
+#        ls -1 "$REPOS_DIR" | grep -F "$term"
+#    done
+#}
+
+# --- List packages ---
+list_pkgs() { ls "$PKGS_DIR" 2>/dev/null || echo "No packages installed"; }
+
+# --- CLI ---
+CMD="${1:-}"
+case "$CMD" in
+	i | install)
+		shift
+		[[ $# -eq 0 ]] && {
+			echo "Usage: pkgit i <pkg[:ver]> ..."
+					exit 1
+				}
+			for p in "$@"; do install_pkg "$p"; done
+			;;
+		r | remove)
+			shift
+			remove_pkg "${1:-}"
+			;;
+		s | search)
+			search_pkgs "$@"
+			;;
+		ls | list)
+			list_pkgs
+			;;
+		ar)
+			shift
+			[[ -z "${1:-}" ]] && {
+				echo "Usage: pkgit ar <git-url>"
+							exit 1
+						}
+					create_repo_from_git "$1"
+					store_link "$1"
+
+					;;
+				sy)
+					echo "Syncing repositories..."
+					for r in "$REPOS_DIR"/*/LATEST/build.sh; do
+						[[ -f "$r" ]] || continue
+						url=$(grep -m1 '^: "\${PKGIT_GIT_URL:=' "$r" | sed 's/.*:=\([^}]*\).*/\1/')
+						[[ -n "$url" ]] && create_repo_from_git "$url"
+					done
+					echo "Sync completed. repos updated."
+					;;
+				#up)
+					#    for r in "$REPOS_DIR"/*/LATEST/build.sh; do
+					#        [[ -f "$r" ]] || continue
+					#        pkg=$(basename "$(dirname "$r")" | tr '[:upper:]' '[:lower:]')
+					#        install_pkg "$pkg"
+					#    done
+					#    ;;
+				up)
+					echo "Updating installed packages..."
+					for r in "$REPOS_DIR"/*/LATEST/build.sh; do
+						[[ -f "$r" ]] || continue
+						pkg=$(basename "$(dirname "$r")" | tr '[:upper:]' '[:lower:]')
+						install_pkg "$pkg"
+					done
+					echo "All installed packages have been updated."
+					;;
+				*)
+					red='\033[0;31m'
+					green='\033[0;32m'
+					yellow='\033[0;33m'
+					blue='\033[0;34m'
+					magenta='\033[0;35m'
+					cyan='\033[0;36m'
+					gray='\033[0;37m'
+					bold_red='\033[1;31m'
+					bold_green='\033[1;32m'
+					bold_yellow='\033[1;33m'
+					bold_blue='\033[1;34m'
+					bold_magenta='\033[1;35m'
+					bold_cyan='\033[1;36m'
+					bold_gray='\033[1;37m'
+					reset='\033[0m'
+
+					color() {
+						echo "${1}$2${reset}"
+					}
+
+				or() {
+					color "$yellow" "|"
+				}
+
+			exmpl() {
+				color "$blue" "$1"
+			}
+
+		shortopt() {
+			if [ $# == 2 ]; then
+				echo "$(color "$bold_green" "$1") $(exmpl "$2")"
+			else
+				color "$bold_green" "$1"
+			fi
+		}
+
+	longopt() {
+		if [ $# == 2 ]; then
+			echo "$(color "$cyan" "$1") $(exmpl "$2")"
+		else
+			color "$cyan" "$1"
+		fi
+	}
+
+desc() {
+	color "$gray" "$1"
+}
+
+echo -e """$(color "$bold_magenta" "pkgit") - package it!
+$(color "$magenta" "v$VERSION")
+
+$(color "$red" "options:")
+$(shortopt "ar" "[url.git]")    $(or)   $(longopt "add-repo" "[url.git]")    $(desc "# add a package to the local repo")
+$(shortopt "i" "[pkgs]")        $(or)   $(longopt "install" "[pkgs]")        $(desc "# installs a package from the repo")
+$(shortopt "r" "[pkgs]")        $(or)   $(longopt "remove" "[pkgs]")         $(desc "# removes an installed package")
+$(shortopt "ls")              $(or)   $(longopt "list")                  $(desc "# list installed packages")
+$(shortopt "s" "[pkgs]")        $(or)   $(longopt "search" "[pkgs]")         $(desc "# search for packages")
+$(shortopt "sy")              $(or)   $(longopt "sync")                  $(desc "# updates the repo")
+$(shortopt "up")              $(or)   $(longopt "update-packages")       $(desc "# updates all installed packages")
+"""
+;;
+esac
