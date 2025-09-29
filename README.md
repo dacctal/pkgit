@@ -4,7 +4,7 @@ package it!
 ## what is this?
 pkgit is an unconventional package manager designed to create package repos purely from that package's git repo.
 
-as it is, you will have to manage your own dependencies for each package you install. There's not a universal way to check for dependencies without using an existing package manager.
+As it is, pkgit is not capable of dependency management; so you will have to manage your own dependencies for each package you install. There's not a universal way to check for dependencies without using an existing package manager.
 
 ## options
 
