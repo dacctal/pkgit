@@ -8,6 +8,7 @@ ROOT="/var/lib/pkgit"
 BIN_DIR="/usr/local/bin"
 LIB_DIR="/usr/lib"
 INCLUDE_DIR="/usr/include"
+BLDIT_DIR="/etc/pkgit/bldit"
 
 REPOS_DIR="$ROOT/repos"
 PKGS_DIR="$ROOT/pkgs"
@@ -123,8 +124,8 @@ create_repo_from_git() {
                 cp "$tmpclone/bldit" "$verdir/bldit"
                 echo "[pkgit] Using repo-provided bldit for $pkg:$tag"
             else
-                cp "$ROOT/bldit/bldit-default" "$verdir/bldit"
-                echo "[pkgit] No bldit in repo, using default from $ROOT for $pkg:$tag"
+                cp "$BLDIT_DIR/bldit-default" "$verdir/bldit"
+                echo "[pkgit] No bldit in repo, using default from $BLDIT_DIR for $pkg:$tag"
             fi
 
             echo "$url" >>"$verdir/url"
@@ -175,8 +176,8 @@ install_pkg() {
     fi
 
     if [[ ! -f "$repodir/bldit" ]]; then
-        if [[ ! -f "$ROOT/bldit/$pkg" ]]; then
-            if [[ ! -f "$ROOT/bldit/bldit-default" ]]; then
+        if [[ ! -f "$BLDIT_DIR/$pkg" ]]; then
+            if [[ ! -f "$BLDIT_DIR/bldit-default" ]]; then
                 echo "[pkgit] No bldit found for $pkg:$ver"
                 return 1
             fi
@@ -193,9 +194,9 @@ install_pkg() {
     local url="$(cd $repodir && cat url)"
     local tag="$(cd $repodir && cat ver)"
     echo "url: $url | pkg: $pkg | ver: $tag | bin-dir: $BIN_DIR | pkg-dir: $PKGS_DIR | build-dir: $BUILD_DIR"
-    bash "$ROOT/bldit/$pkg" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
+    bash "$BLDIT_DIR/$pkg" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
         bash "$repodir/bldit" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
-        bash "$ROOT/bldit/bldit-default" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" || {
+        bash "$BLDIT_DIR/bldit-default" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" || {
         echo "[pkgit] Build FAILED for $pkg:$ver"
         return 1
     }
@@ -344,12 +345,13 @@ up | update)
 ug | upgrade)
     curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
     ;;
-*)
+h | *)
 
     echo -e """$(color "$bold_magenta" "pkgit") - package it!
 $(color "$magenta" "v$VERSION")
 
 $(color "$red" "options:")
+$(shortopt "h")               $(or)   $(longopt "help")                  $(desc "# display this help message")
 $(shortopt "ar" "[url.git]")    $(or)   $(longopt "add-repo" "[url.git]")    $(desc "# add a package to the local repo")
 $(shortopt "i" "[pkgs]")        $(or)   $(longopt "install" "[pkgs]")        $(desc "# install a package from the repo")
 $(shortopt "r" "[pkgs]")        $(or)   $(longopt "remove" "[pkgs]")         $(desc "# remove an installed package")

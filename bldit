@@ -16,4 +16,9 @@ else
     curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/pkgit" >>pkgit
     chmod +x pkgit
     "$su" mv pkgit /usr/bin
+
+    curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit-default" >>pkgit
+    chmod +x bldit-default
+    "$su" mkdir -p /etc/pkgit/bldit/
+    "$su" mv bldit-default /etc/pkgit/bldit/
 fi
