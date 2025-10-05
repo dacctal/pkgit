@@ -8,7 +8,9 @@ As it is, pkgit is not capable of dependency management, so you will have to man
 
 ## installation
 you can install pkgit by simply pasting the following command into your terminal:
-```curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash```
+```
+curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
+```
 
 ## options
 

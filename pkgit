@@ -74,8 +74,8 @@ mkdir_cmd() {
 
 for dir in "${PKGIT_ESSENTIAL_DIRS[@]}"; do
     if [ ! -d "$dir" ]; then
-        echo "[pkgit] your system is missing some essential upsm directories."
-        echo "[pkgit] auto-generating upsm directories..."
+        echo "[pkgit] your system is missing some essential pkgit directories."
+        echo "[pkgit] auto-generating pkgit directories..."
         mkdir_cmd "$dir"
     fi
 done
