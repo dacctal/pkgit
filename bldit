@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
-source pkgit
 
-cp pkgit "/usr/local/bin"
-cp bldit-default "$ROOT/bldit/bldit-default"
+if which doas; then
+    su=doas
+elif which sudo; then
+    su=sudo
+else
+    echo "[ERROR] Cannot get root access"
+    return 1
+fi
+
+if [ -f "pkgit" ] && [ -f "bldit-default" ]; then
+    "$su" cp pkgit "/usr/local/bin"
+    "$su" cp bldit-default "/var/lib/pkgit/bldit/bldit-default"
+else
+    curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/pkgit" >>pkgit
+    "$su" mv pkgit /usr/local/bin
+fi

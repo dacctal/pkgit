@@ -241,8 +241,6 @@ create_repo_from_git() {
             echo "[pkgit] No bldit in repo, using default from $ROOT for $pkg:$tag"
         fi
 
-        echo "$url" >>"$verdir/url"
-        echo "$tag" >>"$verdir/ver"
         chmod +x "$verdir/bldit"
         rm -rf "$tmpclone"
 
@@ -363,12 +361,12 @@ install_pkg() {
     mkdir -p "$build_dir"
     export ROOT PKGS_DIR BIN_DIR BUILD_DIR="$build_dir"
 
-    local url="$(cd $repodir && cat url)"
-    local tag="$(cd $repodir && cat ver)"
-    echo "url: $url | pkg: $pkg | ver: $tag | bin-dir: $BIN_DIR | pkg-dir: $PKGS_DIR | build-dir: $BUILD_DIR"
-    bash "$ROOT/bldit/$pkg" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
-        bash "$repodir/bldit" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
-        bash "$ROOT/bldit/bldit-default" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" || {
+    local url="$(cd $repodir && git remote -v)"
+    local tag="$(basename "$(dirname $build_dir)")"
+    echo "url: $url | pkg: $pkg | ver: $tag"
+    bash "$ROOT/bldit/$pkg" "$url" "$pkg" "$tag" ||
+        bash "$repodir/bldit" "$url" "$pkg" "$tag" ||
+        bash "$ROOT/bldit/bldit-default" "$url" "$pkg" "$tag" || {
         echo "[pkgit] Build FAILED for $pkg:$ver"
         return 1
     }
@@ -382,15 +380,7 @@ install_pkg() {
 
         if [[ -d "$installed_dir/bin" ]]; then
             mkdir -p "$BIN_DIR"
-            for f in "$installed_dir/bin/"*; do
-                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$BIN_DIR/$(basename "$f")"
-            done
-            for f in "$installed_dir/lib/"*; do
-                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "/usr/lib/$(basename "$f")"
-            done
-            for f in "$installed_dir/include/"*; do
-                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "/usr/include/$(basename "$f")"
-            done
+            for f in "$installed_dir/bin/"*; do [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$BIN_DIR/$(basename "$f")"; done
             echo "[pkgit] Symlinked binaries for $pkg -> $BIN_DIR"
         fi
     else
@@ -466,7 +456,6 @@ ar)
     ;;
 sy)
     echo -e "$(color "$magenta" "[pkgit] *") Syncing repositories..."
-    rm -rf "$REPOS_DIR/*/"
     while IFS= read -r repo; do
         echo -e "$(color "$blue" "Syncing:") $repo"
         create_repo_from_git "$repo"
