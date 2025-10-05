@@ -307,6 +307,9 @@ up)
     echo ""
     echo -e "$(color "$green" "[pkgit] *") All installed packages have been updated."
     ;;
+ug)
+    curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
+    ;;
 *)
 
     echo -e """$(color "$bold_magenta" "pkgit") - package it!
@@ -319,7 +322,8 @@ $(shortopt "r" "[pkgs]")        $(or)   $(longopt "remove" "[pkgs]")         $(d
 $(shortopt "ls")              $(or)   $(longopt "list")                  $(desc "# list installed packages")
 $(shortopt "s" "[pkgs]")        $(or)   $(longopt "search" "[pkgs]")         $(desc "# search for packages")
 $(shortopt "sy")              $(or)   $(longopt "sync")                  $(desc "# updates the repo")
-$(shortopt "up")              $(or)   $(longopt "update-packages")       $(desc "# updates all installed packages")
+$(shortopt "up")              $(or)   $(longopt "update")                $(desc "# updates all installed packages")
+$(shortopt "ug")              $(or)   $(longopt "upgrade")               $(desc "# updates pkgit")
 """
     ;;
 esac
