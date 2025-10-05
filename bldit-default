@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PKGIT_GIT_URL="$1"
+pkg="$2"
+tag="$3"
+BUILD_DIR=$4
+BIN_DIR=$5
+PKGS_DIR=$6
+
+PKGIT_DEPS=()
+
+# Define source directory first
+SRC_DIR="$BUILD_DIR/$pkg-$tag"
+rm -rf "$SRC_DIR"
+
+install_dependencies() {
+    for dep in "${PKGIT_DEPS[@]:-}"; do
+        [[ -z "$dep" ]] && continue
+        echo "[pkgit] Installing dependency: $dep"
+        pkgit i "$dep"
+    done
+}
+
+install_bins() {
+    [[ -d "$PKGS_DIR/$pkg/$tag/bin" ]] || {
+        echo "[pkgit] No bin/ directory, skipping executable symlinks"
+        return
+    }
+    find "$PKGS_DIR/$pkg/$tag/bin" -type f -executable -exec ln -sf {} "$BIN_DIR" \;
+}
+
+build() {
+    cd "$SRC_DIR"
+
+    if [[ -f configure.ac || -f configure ]]; then
+        autoreconf -fi || true
+        ./configure --prefix="$PKGS_DIR/$pkg/$tag"
+        make -j$(nproc)
+        make install
+        install_bins
+    elif [[ -f meson.build ]]; then
+        meson setup build --prefix="$PKGS_DIR/$pkg/$tag"
+        ninja -C build
+        ninja -C build install
+        install_bins
+    elif [[ -f CMakeLists.txt ]]; then
+        mkdir -p build
+        cd build
+        cmake -DCMAKE_INSTALL_PREFIX="$PKGS_DIR/$pkg/$tag" ..
+        cmake --build .
+        cmake --install .
+        install_bins
+    elif [[ -f Makefile || -f GNUmakefile ]]; then
+        make -j$(nproc)
+        make PREFIX="$PKGS_DIR/$pkg/$tag" install
+        install_bins
+    elif [[ -f Cargo.toml ]]; then
+        cargo build --release
+        mkdir -p "$PKGS_DIR/$pkg/$tag/bin"
+        find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "$PKGS_DIR/$pkg/$tag/bin/" \;
+        install_bins
+    elif [[ -f build.sh ]]; then
+        chmod +x build.sh
+        ./build.sh
+        mkdir -p "$PKGS_DIR/$pkg/$tag/bin"
+        find . -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "$PKGS_DIR/$pkg/$tag/bin/" \;
+        install_bins
+    else
+        echo "[pkgit] No recognized build system in $SRC_DIR"
+        exit 1
+    fi
+}
+
+if [[ "$tag" == "HEAD" ]]; then
+    git -c advice.detachedHead=false clone --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
+else
+    git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
+fi
+
+cd "$SRC_DIR"
+install_dependencies
+build
+install_bins

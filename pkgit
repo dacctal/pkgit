@@ -87,6 +87,121 @@ update_latest_symlink() {
     ln -sfn "$ver" "$pkgdir/LATEST.tmp" && mv -f "$pkgdir/LATEST.tmp" "$pkgdir/LATEST"
 }
 
+#create_repo_from_git() {
+#    local url="$1"
+#    local pkg=$(basename "$url" .git | tr '[:upper:]' '[:lower:]')
+#    local pkgdir="$REPOS_DIR/$pkg"
+#    mkdir -p "$pkgdir"
+#
+#    echo "[pkgit] Creating repo(s) for $pkg from $url"
+#
+#    local tags
+#    tags=$(git ls-remote --tags --refs "$url" 2>/dev/null | awk -F/ '{print $3}' | grep -E '^[0-9]+(\.[0-9]+)*$|^v[0-9]+(\.[0-9]+)*$' | sort -Vr) || {
+#        echo "[pkgit] Warning: Could not fetch tags from $url" >&2
+#        tags="HEAD"
+#    }
+#    [[ -n "$tags" ]] || tags="HEAD"
+#
+#    for tag in $tags; do
+#        local verdir="$pkgdir/$tag"
+#        mkdir -p "$verdir"
+#
+#        cat >"$verdir/build.sh" <<EOF
+##!/usr/bin/env bash
+#set -euo pipefail
+#
+#: "\${BUILD_DIR:=\$BUILD_DIR}"
+#: "\${PKGS_DIR:=\$PKGS_DIR}"
+#: "\${BIN_DIR:=\$BIN_DIR}"
+#
+#PKGIT_GIT_URL="$url"
+#pkg="$pkg"
+#tag="$tag"
+#
+#PKGIT_DEPS=()
+#
+## Define source directory first
+#SRC_DIR="\$BUILD_DIR/\$pkg-\$tag"
+#rm -rf "\$SRC_DIR"
+#
+#install_dependencies() {
+#    for dep in "\${PKGIT_DEPS[@]:-}"; do
+#	    [[ -z "\$dep" ]] && continue
+#	    echo "[pkgit] Installing dependency: \$dep"
+#	    pkgit i "\$dep"
+#    done
+#}
+#
+#install_bins() {
+#    [[ -d "\$PKGS_DIR/\$pkg/\$tag/bin" ]] || { echo "[pkgit] No bin/ directory, skipping executable symlinks"; return; }
+#    find "\$PKGS_DIR/\$pkg/\$tag/bin" -type f -executable -exec ln -sf {} "\$BIN_DIR" \;
+#}
+#
+#build() {
+#    cd "\$SRC_DIR"
+#
+#    if [[ -f configure.ac || -f configure ]]; then
+#        autoreconf -fi || true
+#        ./configure --prefix="\$PKGS_DIR/\$pkg/\$tag"
+#        make -j\$(nproc)
+#        make install
+#        install_bins
+#    elif [[ -f meson.build ]]; then
+#        meson setup build --prefix="\$PKGS_DIR/\$pkg/\$tag"
+#        ninja -C build
+#        ninja -C build install
+#        install_bins
+#    elif [[ -f CMakeLists.txt ]]; then
+#        mkdir -p build
+#        cd build
+#        cmake -DCMAKE_INSTALL_PREFIX="\$PKGS_DIR/\$pkg/\$tag" ..
+#        cmake --build .
+#        cmake --install .
+#        install_bins
+#    elif [[ -f Makefile || -f GNUmakefile ]]; then
+#        make -j\$(nproc)
+#        make PREFIX="\$PKGS_DIR/\$pkg/\$tag" install
+#        install_bins
+#    elif [[ -f Cargo.toml ]]; then
+#        cargo build --release
+#        mkdir -p "\$PKGS_DIR/\$pkg/\$tag/bin"
+#        find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "\$PKGS_DIR/\$pkg/\$tag/bin/" \;
+#        install_bins
+#    elif [[ -f build.sh ]]; then
+#        chmod +x build.sh
+#        ./build.sh
+#        mkdir -p "\$PKGS_DIR/\$pkg/\$tag/bin"
+#        find . -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "\$PKGS_DIR/\$pkg/\$tag/bin/" \;
+#        install_bins
+#    else
+#        echo "[pkgit] No recognized build system in \$SRC_DIR"
+#        exit 1
+#        fi
+#}
+#
+#if [[ "\$tag" == "HEAD" ]]; then
+#    git -c advice.detachedHead=false clone --depth 1 "\$PKGIT_GIT_URL" "\$SRC_DIR"
+#else
+#    git -c advice.detachedHead=false clone --branch "\$tag" --depth 1 "\$PKGIT_GIT_URL" "\$SRC_DIR"
+#fi
+#
+#cd "\$SRC_DIR"
+#install_dependencies
+#build
+#install_bins
+#EOF
+#
+#        chmod +x "$verdir/build.sh"
+#        echo "[pkgit] Created repo for $pkg $tag at $verdir"
+#    done
+#
+#    # Update LATEST
+#    local latest_tag
+#    latest_tag=$(echo "$tags" | head -n1)
+#    update_latest_symlink "$pkg" "$latest_tag"
+#    echo "[pkgit] LATEST symlink updated to $latest_tag"
+#}
+
 create_repo_from_git() {
     local url="$1"
     local pkg=$(basename "$url" .git | tr '[:upper:]' '[:lower:]')
@@ -95,8 +210,10 @@ create_repo_from_git() {
 
     echo "[pkgit] Creating repo(s) for $pkg from $url"
 
+    # Detect tags
     local tags
-    tags=$(git ls-remote --tags --refs "$url" 2>/dev/null | awk -F/ '{print $3}' | grep -E '^[0-9]+(\.[0-9]+)*$|^v[0-9]+(\.[0-9]+)*$' | sort -Vr) || {
+    tags=$(git ls-remote --tags --refs "$url" 2>/dev/null | awk -F/ '{print $3}' |
+        grep -E '^[0-9]+(\.[0-9]+)*$|^v[0-9]+(\.[0-9]+)*$' | sort -Vr) || {
         echo "[pkgit] Warning: Could not fetch tags from $url" >&2
         tags="HEAD"
     }
@@ -106,96 +223,33 @@ create_repo_from_git() {
         local verdir="$pkgdir/$tag"
         mkdir -p "$verdir"
 
-        cat >"$verdir/build.sh" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
+        # Clone shallowly to check for bldit
+        local tmpclone
+        tmpclone="$(mktemp -d)"
+        if [[ "$tag" == "HEAD" ]]; then
+            git -c advice.detachedHead=false clone --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
+        else
+            git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
+        fi
 
-: "\${BUILD_DIR:=\$BUILD_DIR}"
-: "\${PKGS_DIR:=\$PKGS_DIR}"
-: "\${BIN_DIR:=\$BIN_DIR}"
+        # Pick the right bldit
+        if [[ -f "$tmpclone/bldit" ]]; then
+            cp "$tmpclone/bldit" "$verdir/bldit"
+            echo "[pkgit] Using repo-provided bldit for $pkg:$tag"
+        else
+            cp "$ROOT/bldit/bldit-default" "$verdir/bldit"
+            echo "[pkgit] No bldit in repo, using default from $ROOT for $pkg:$tag"
+        fi
 
-PKGIT_GIT_URL="$url"
-pkg="$pkg"
-tag="$tag"
+        echo "$url" >>"$verdir/url"
+        echo "$tag" >>"$verdir/ver"
+        chmod +x "$verdir/bldit"
+        rm -rf "$tmpclone"
 
-PKGIT_DEPS=()
-
-# Define source directory first
-SRC_DIR="\$BUILD_DIR/\$pkg-\$tag"
-rm -rf "\$SRC_DIR"
-
-install_dependencies() {
-    for dep in "\${PKGIT_DEPS[@]:-}"; do
-	[[ -z "\$dep" ]] && continue
-	echo "[pkgit] Installing dependency: \$dep"
-	pkgit i "\$dep"
-done
-}
-
-install_bins() {
-    [[ -d "\$PKGS_DIR/\$pkg/\$tag/bin" ]] || { echo "[pkgit] No bin/ directory, skipping executable symlinks"; return; }
-    find "\$PKGS_DIR/\$pkg/\$tag/bin" -type f -executable -exec ln -sf {} "\$BIN_DIR" \;
-}
-
-build() {
-    cd "\$SRC_DIR"
-
-    if [[ -f configure.ac || -f configure ]]; then
-	autoreconf -fi || true
-	./configure --prefix="\$PKGS_DIR/\$pkg/\$tag"
-	make -j\$(nproc)
-	make install
-	install_bins
-elif [[ -f meson.build ]]; then
-	meson setup build --prefix="\$PKGS_DIR/\$pkg/\$tag"
-	ninja -C build
-	ninja -C build install
-	install_bins
-elif [[ -f CMakeLists.txt ]]; then
-	mkdir -p build
-	cd build
-	cmake -DCMAKE_INSTALL_PREFIX="\$PKGS_DIR/\$pkg/\$tag" ..
-	cmake --build .
-	cmake --install .
-	install_bins
-elif [[ -f Makefile || -f GNUmakefile ]]; then
-	make -j\$(nproc)
-	make PREFIX="\$PKGS_DIR/\$pkg/\$tag" install
-	install_bins
-elif [[ -f Cargo.toml ]]; then
-	cargo build --release
-	mkdir -p "\$PKGS_DIR/\$pkg/\$tag/bin"
-	find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "\$PKGS_DIR/\$pkg/\$tag/bin/" \;
-	install_bins
-elif [[ -f build.sh ]]; then
-	chmod +x build.sh
-	./build.sh
-	mkdir -p "\$PKGS_DIR/\$pkg/\$tag/bin"
-	find . -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} "\$PKGS_DIR/\$pkg/\$tag/bin/" \;
-	install_bins
-else
-	echo "[pkgit] No recognized build system in \$SRC_DIR"
-	exit 1
-    fi
-}
-
-if [[ "\$tag" == "HEAD" ]]; then
-    git -c advice.detachedHead=false clone --depth 1 "\$PKGIT_GIT_URL" "\$SRC_DIR"
-else
-    git -c advice.detachedHead=false clone --branch "\$tag" --depth 1 "\$PKGIT_GIT_URL" "\$SRC_DIR"
-fi
-
-cd "\$SRC_DIR"
-install_dependencies
-build
-install_bins
-EOF
-
-        chmod +x "$verdir/build.sh"
-        echo "[pkgit] Created repo for $pkg $tag at $verdir"
+        echo "[pkgit] Repo ready for $pkg $tag at $verdir"
     done
 
-    # Update LATEST
+    # Update LATEST symlink
     local latest_tag
     latest_tag=$(echo "$tags" | head -n1)
     update_latest_symlink "$pkg" "$latest_tag"
@@ -211,7 +265,65 @@ store_link() {
     fi
 }
 
-# --- Install package ---
+#install_pkg() {
+#    local input="$1"
+#    local pkg ver
+#
+#    if [[ "$input" == *:* ]]; then
+#        pkg="${input%%:*}"
+#        ver="${input##*:}"
+#    else
+#        pkg="$input"
+#        ver="LATEST"
+#    fi
+#    pkg=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
+#
+#    local repodir="$REPOS_DIR/$pkg/$ver"
+#    if [[ "$ver" == "LATEST" ]]; then
+#        if [[ -L "$REPOS_DIR/$pkg/LATEST" ]]; then
+#            repodir=$(readlink -f "$REPOS_DIR/$pkg/LATEST")
+#        else
+#            echo "[pkgit] No LATEST version for $pkg"
+#            return 1
+#        fi
+#    fi
+#    [[ -f "$repodir/build.sh" ]] || {
+#        echo "[pkgit] No build.sh for $pkg:$ver"
+#        return 1
+#    }
+#
+#    echo "[pkgit] Installing $pkg:$ver ..."
+#
+#    local build_dir="$BUILD_DIR/${pkg}-${ver}-$(date +%s)"
+#    rm -rf "$build_dir"
+#    mkdir -p "$build_dir"
+#    export ROOT PKGS_DIR BIN_DIR BUILD_DIR="$build_dir"
+#
+#    bash "$repodir/build.sh" || {
+#        echo "[pkgit] Build FAILED for $pkg:$ver"
+#        return 1
+#    }
+#    echo "[pkgit] Build executed for $pkg:$ver"
+#
+#    # Mark LATEST and symlink binaries if present
+#    local installed_dir="$PKGS_DIR/$pkg/$ver"
+#    [[ -d "$installed_dir" ]] || installed_dir=$(find "$PKGS_DIR/$pkg" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)
+#    if [[ -d "$installed_dir" ]]; then
+#        ln -sfn "$installed_dir" "$PKGS_DIR/$pkg/LATEST"
+#        echo "[pkgit] Installed LATEST for $pkg -> $(basename "$installed_dir")"
+#
+#        if [[ -d "$installed_dir/bin" ]]; then
+#            mkdir -p "$BIN_DIR"
+#            for f in "$installed_dir/bin/"*; do [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$BIN_DIR/$(basename "$f")"; done
+#            echo "[pkgit] Symlinked binaries for $pkg -> $BIN_DIR"
+#        fi
+#    else
+#        echo "[pkgit] WARNING: no installed files found for $pkg:$ver"
+#    fi
+#
+#    echo "[pkgit] Finished install of $pkg:$ver"
+#}
+
 install_pkg() {
     local input="$1"
     local pkg ver
@@ -234,10 +346,15 @@ install_pkg() {
             return 1
         fi
     fi
-    [[ -f "$repodir/build.sh" ]] || {
-        echo "[pkgit] No build.sh for $pkg:$ver"
-        return 1
-    }
+
+    if [[ ! -f "$repodir/bldit" ]]; then
+        if [[ ! -f "$ROOT/bldit/$pkg" ]]; then
+            if [[ ! -f "$ROOT/bldit/bldit-default" ]]; then
+                echo "[pkgit] No bldit found for $pkg:$ver"
+                return 1
+            fi
+        fi
+    fi
 
     echo "[pkgit] Installing $pkg:$ver ..."
 
@@ -246,13 +363,17 @@ install_pkg() {
     mkdir -p "$build_dir"
     export ROOT PKGS_DIR BIN_DIR BUILD_DIR="$build_dir"
 
-    bash "$repodir/build.sh" || {
+    local url="$(cd $repodir && cat url)"
+    local tag="$(cd $repodir && cat ver)"
+    echo "url: $url | pkg: $pkg | ver: $tag | bin-dir: $BIN_DIR | pkg-dir: $PKGS_DIR | build-dir: $BUILD_DIR"
+    bash "$ROOT/bldit/$pkg" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
+        bash "$repodir/bldit" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
+        bash "$ROOT/bldit/bldit-default" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" || {
         echo "[pkgit] Build FAILED for $pkg:$ver"
         return 1
     }
     echo "[pkgit] Build executed for $pkg:$ver"
 
-    # Mark LATEST and symlink binaries if present
     local installed_dir="$PKGS_DIR/$pkg/$ver"
     [[ -d "$installed_dir" ]] || installed_dir=$(find "$PKGS_DIR/$pkg" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)
     if [[ -d "$installed_dir" ]]; then
@@ -261,7 +382,15 @@ install_pkg() {
 
         if [[ -d "$installed_dir/bin" ]]; then
             mkdir -p "$BIN_DIR"
-            for f in "$installed_dir/bin/"*; do [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$BIN_DIR/$(basename "$f")"; done
+            for f in "$installed_dir/bin/"*; do
+                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$BIN_DIR/$(basename "$f")"
+            done
+            for f in "$installed_dir/lib/"*; do
+                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "/usr/lib/$(basename "$f")"
+            done
+            for f in "$installed_dir/include/"*; do
+                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "/usr/include/$(basename "$f")"
+            done
             echo "[pkgit] Symlinked binaries for $pkg -> $BIN_DIR"
         fi
     else
@@ -271,7 +400,6 @@ install_pkg() {
     echo "[pkgit] Finished install of $pkg:$ver"
 }
 
-# --- Remove package ---
 remove_pkg() {
     local pkg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
     [[ -z "$pkg" ]] && {
@@ -338,6 +466,7 @@ ar)
     ;;
 sy)
     echo -e "$(color "$magenta" "[pkgit] *") Syncing repositories..."
+    rm -rf "$REPOS_DIR/*/"
     while IFS= read -r repo; do
         echo -e "$(color "$blue" "Syncing:") $repo"
         create_repo_from_git "$repo"

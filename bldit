@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+source pkgit
+
+cp pkgit "/usr/local/bin"
+cp bldit-default "$ROOT/bldit/bldit-default"
