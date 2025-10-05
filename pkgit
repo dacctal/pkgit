@@ -273,7 +273,13 @@ search_pkgs() {
     done
 }
 
-list_pkgs() { ls "$PKGS_DIR" 2>/dev/null || echo "No packages installed"; }
+list_pkgs() {
+    ls "$PKGS_DIR" 2>/dev/null || echo "No packages installed"
+}
+
+list_repos() {
+    ls "$REPOS_DIR" 2>/dev/null || echo "No repos exist"
+}
 
 CMD="${1:-}"
 case "$CMD" in
@@ -296,8 +302,11 @@ rr | remove-repo)
 s | search)
     search_pkgs "$@"
     ;;
-ls | list)
+lp | list-pkgs)
     list_pkgs
+    ;;
+lr | list-repos)
+    list_repos
     ;;
 ar | add-repo)
     shift
@@ -342,14 +351,15 @@ $(color "$magenta" "v$VERSION")
 
 $(color "$red" "options:")
 $(shortopt "ar" "[url.git]")    $(or)   $(longopt "add-repo" "[url.git]")    $(desc "# add a package to the local repo")
-$(shortopt "i" "[pkgs]")        $(or)   $(longopt "install" "[pkgs]")        $(desc "# installs a package from the repo")
-$(shortopt "r" "[pkgs]")        $(or)   $(longopt "remove" "[pkgs]")         $(desc "# removes an installed package")
-$(shortopt "rr" "[repos]")        $(or)   $(longopt "remove-repo" "[repos]")         $(desc "# removes a package repo")
-$(shortopt "ls")              $(or)   $(longopt "list")                  $(desc "# list installed packages")
+$(shortopt "i" "[pkgs]")        $(or)   $(longopt "install" "[pkgs]")        $(desc "# install a package from the repo")
+$(shortopt "r" "[pkgs]")        $(or)   $(longopt "remove" "[pkgs]")         $(desc "# remove an installed package")
+$(shortopt "rr" "[repos]")        $(or)   $(longopt "remove-repo" "[repos]")         $(desc "# remove a package repo")
+$(shortopt "lp")              $(or)   $(longopt "list-pkgs")                  $(desc "# list installed packages")
+$(shortopt "lr")              $(or)   $(longopt "list-repos")                  $(desc "# list local repos")
 $(shortopt "s" "[pkgs]")        $(or)   $(longopt "search" "[pkgs]")         $(desc "# search for packages")
-$(shortopt "sy")              $(or)   $(longopt "sync")                  $(desc "# updates the repo")
-$(shortopt "up")              $(or)   $(longopt "update")                $(desc "# updates all installed packages")
-$(shortopt "ug")              $(or)   $(longopt "upgrade")               $(desc "# updates pkgit")
+$(shortopt "sy")              $(or)   $(longopt "sync")                  $(desc "# update the repos")
+$(shortopt "up")              $(or)   $(longopt "update")                $(desc "# update all installed packages")
+$(shortopt "ug")              $(or)   $(longopt "upgrade")               $(desc "# update pkgit")
 """
     ;;
 esac
