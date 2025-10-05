@@ -34,6 +34,9 @@ install_bins() {
 build() {
     cd "$SRC_DIR"
 
+    if [[ -f autogen.sh || -f autogen ]]; then
+        ./autogen*
+    fi
     if [[ -f configure.ac || -f configure ]]; then
         autoreconf -fi || true
         ./configure --prefix="$PKGS_DIR/$pkg/$tag"

@@ -243,6 +243,21 @@ remove_pkg() {
     echo "[pkgit] Removed $pkg"
 }
 
+remove_repo() {
+    local repo=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+    [[ -z "$repo" ]] && {
+        echo "[pkgit] No repo specified"
+        return 1
+    }
+    [[ -d "$REPOS_DIR/$repo" ]] || {
+        echo "[pkgit] Repo $repo does not exist"
+        return 1
+    }
+
+    rm -rf "$REPOS_DIR/$repo"
+    echo "[pkgit] Removed $repo"
+}
+
 search_pkgs() {
     local search_terms="${@:2}"
     echo ""
@@ -269,13 +284,17 @@ r | remove)
     shift
     remove_pkg "${1:-}"
     ;;
+rr | remove-repo)
+    shift
+    remove_repo "${1:-}"
+    ;;
 s | search)
     search_pkgs "$@"
     ;;
 ls | list)
     list_pkgs
     ;;
-ar)
+ar | add-repo)
     shift
     [[ -z "${1:-}" ]] && {
         echo "Usage: pkgit ar <git-url>"
@@ -285,7 +304,7 @@ ar)
     store_link "$1"
 
     ;;
-sy)
+sy | sync)
     echo -e "$(color "$magenta" "[pkgit] *") Syncing repositories..."
     rm -rf "$REPOS_DIR/*/"
     while IFS= read -r repo; do
@@ -296,7 +315,7 @@ sy)
     echo ""
     echo -e "$(color "$green" "[pkgit] *") Sync completed."
     ;;
-up)
+up | update)
     echo -e "$(color "$magenta" "[pkgit] *") Updating installed packages..."
     for pkg in "$PKGS_DIR"/*; do
         qpkg=$(basename "$pkg")
@@ -307,7 +326,7 @@ up)
     echo ""
     echo -e "$(color "$green" "[pkgit] *") All installed packages have been updated."
     ;;
-ug)
+ug | upgrade)
     curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
     ;;
 *)
@@ -319,6 +338,7 @@ $(color "$red" "options:")
 $(shortopt "ar" "[url.git]")    $(or)   $(longopt "add-repo" "[url.git]")    $(desc "# add a package to the local repo")
 $(shortopt "i" "[pkgs]")        $(or)   $(longopt "install" "[pkgs]")        $(desc "# installs a package from the repo")
 $(shortopt "r" "[pkgs]")        $(or)   $(longopt "remove" "[pkgs]")         $(desc "# removes an installed package")
+$(shortopt "rr" "[repos]")        $(or)   $(longopt "remove-repo" "[repos]")         $(desc "# removes a package repo")
 $(shortopt "ls")              $(or)   $(longopt "list")                  $(desc "# list installed packages")
 $(shortopt "s" "[pkgs]")        $(or)   $(longopt "search" "[pkgs]")         $(desc "# search for packages")
 $(shortopt "sy")              $(or)   $(longopt "sync")                  $(desc "# updates the repo")
