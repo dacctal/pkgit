@@ -314,9 +314,9 @@ sy | sync)
     rm -rf "$REPOS_DIR/*/"
     while IFS= read -r repo; do
         echo ""
-        echo -e "$(color "$blue" "Syncing:") $repo"
+        echo -e "$(color "$blue" "Syncing:") $(color "$green" "$repo")"
         create_repo_from_git "$repo"
-        echo -e "$(color "$blue" "Sync completed for:") $repo"
+        echo -e "$(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
     done <"$REPOS_DIR/repos"
     echo ""
     echo -e "$(color "$green" "[pkgit] *") Sync completed."
