@@ -6,6 +6,8 @@ VERSION="0.0.1"
 
 ROOT="/var/lib/pkgit"
 BIN_DIR="/usr/local/bin"
+LIB_DIR="/usr/lib"
+INCLUDE_DIR="/usr/include"
 
 REPOS_DIR="$ROOT/repos"
 PKGS_DIR="$ROOT/pkgs"
@@ -105,30 +107,33 @@ create_repo_from_git() {
 
     for tag in $tags; do
         local verdir="$pkgdir/$tag"
-        mkdir -p "$verdir"
 
-        local tmpclone
-        tmpclone="$(mktemp -d)"
-        if [[ "$tag" == "HEAD" ]]; then
-            git -c advice.detachedHead=false clone --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
-        else
-            git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
+        if [ ! -d "$verdir" ]; then
+            mkdir -p "$verdir"
+
+            local tmpclone
+            tmpclone="$(mktemp -d)"
+            if [[ "$tag" == "HEAD" ]]; then
+                git -c advice.detachedHead=false clone --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
+            else
+                git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
+            fi
+
+            if [[ -f "$tmpclone/bldit" ]]; then
+                cp "$tmpclone/bldit" "$verdir/bldit"
+                echo "[pkgit] Using repo-provided bldit for $pkg:$tag"
+            else
+                cp "$ROOT/bldit/bldit-default" "$verdir/bldit"
+                echo "[pkgit] No bldit in repo, using default from $ROOT for $pkg:$tag"
+            fi
+
+            echo "$url" >>"$verdir/url"
+            echo "$tag" >>"$verdir/ver"
+            chmod +x "$verdir/bldit"
+            rm -rf "$tmpclone"
+
+            echo "[pkgit] Repo ready for $pkg $tag at $verdir"
         fi
-
-        if [[ -f "$tmpclone/bldit" ]]; then
-            cp "$tmpclone/bldit" "$verdir/bldit"
-            echo "[pkgit] Using repo-provided bldit for $pkg:$tag"
-        else
-            cp "$ROOT/bldit/bldit-default" "$verdir/bldit"
-            echo "[pkgit] No bldit in repo, using default from $ROOT for $pkg:$tag"
-        fi
-
-        echo "$url" >>"$verdir/url"
-        echo "$tag" >>"$verdir/ver"
-        chmod +x "$verdir/bldit"
-        rm -rf "$tmpclone"
-
-        echo "[pkgit] Repo ready for $pkg $tag at $verdir"
     done
 
     local latest_tag
@@ -208,10 +213,10 @@ install_pkg() {
                 [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$BIN_DIR/$(basename "$f")"
             done
             for f in "$installed_dir/lib/"*; do
-                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "/usr/lib/$(basename "$f")"
+                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$LIB_DIR/$(basename "$f")"
             done
             for f in "$installed_dir/include/"*; do
-                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "/usr/include/$(basename "$f")"
+                [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$INCLUDE_DIR/$(basename "$f")"
             done
             echo "[pkgit] Symlinked binaries for $pkg -> $BIN_DIR"
         fi
@@ -239,7 +244,7 @@ remove_pkg() {
         done
     fi
 
-    rm -rf "/usr/local/bin/" "$PKGS_DIR/$pkg" "$BUILD_DIR/$pkg-"*
+    rm -rf "$BIN_DIR/$pkg" "$PKGS_DIR/$pkg" "$BUILD_DIR/$pkg-"*
     echo "[pkgit] Removed $pkg"
 }
 
@@ -308,6 +313,7 @@ sy | sync)
     echo -e "$(color "$magenta" "[pkgit] *") Syncing repositories..."
     rm -rf "$REPOS_DIR/*/"
     while IFS= read -r repo; do
+        echo ""
         echo -e "$(color "$blue" "Syncing:") $repo"
         create_repo_from_git "$repo"
         echo -e "$(color "$blue" "Sync completed for:") $repo"
