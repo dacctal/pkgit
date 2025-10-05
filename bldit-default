@@ -10,15 +10,16 @@ PKGS_DIR=$6
 
 PKGIT_DEPS=()
 
-# Define source directory first
 SRC_DIR="$BUILD_DIR/$pkg-$tag"
 rm -rf "$SRC_DIR"
 
 install_dependencies() {
     for dep in "${PKGIT_DEPS[@]:-}"; do
         [[ -z "$dep" ]] && continue
-        echo "[pkgit] Installing dependency: $dep"
-        pkgit i "$dep"
+        depname=$(basename "$dep" .git | tr '[:upper:]' '[:lower:]')
+        echo "[pkgit] Installing dependency: $depname"
+        pkgit ar "$dep"
+        pkgit i "$depname"
     done
 }
 

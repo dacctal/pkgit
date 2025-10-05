@@ -6,6 +6,10 @@ pkgit is an unconventional package manager designed to create package repos pure
 
 As it is, pkgit is not capable of dependency management, so you will have to manage your own dependencies for each package you install. There's not a universal way to check for dependencies without using an existing package manager.
 
+## installation
+you can install pkgit by simply pasting the following command into your terminal:
+`curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash`
+
 ## options
 
 | command         | long command            | description                       |
