@@ -11,7 +11,8 @@ fi
 
 if [ -f "pkgit" ] && [ -f "bldit-default" ]; then
     "$su" cp pkgit "/usr/bin"
-    "$su" cp bldit-default "/var/lib/pkgit/bldit/bldit-default"
+    "$su" mkdir -p /etc/pkgit/bldit/
+    "$su" cp bldit-default "/etc/pkgit/bldit/"
 else
     curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/pkgit" >>pkgit
     chmod +x pkgit
