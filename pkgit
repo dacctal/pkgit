@@ -128,8 +128,12 @@ create_repo_from_git() {
                 echo "[pkgit] No bldit in repo, using default from $BLDIT_DIR for $pkg:$tag"
             fi
 
-            echo "$url" >>"$verdir/url"
-            echo "$tag" >>"$verdir/ver"
+            if ! grep -q "$url" = "$verdir/url"; then
+                echo "$url" >>"$verdir/url"
+            fi
+            if ! grep -q "$tag" = "$verdir/ver"; then
+                echo "$tag" >>"$verdir/ver"
+            fi
             chmod +x "$verdir/bldit"
             rm -rf "$tmpclone"
 
@@ -311,13 +315,40 @@ lr | list-repos)
     ;;
 ar | add-repo)
     shift
+    if [ "$1" == -i ]; then
+        [[ -z "${2:-}" ]] && {
+            echo "Usage: pkgit ar <git-url>"
+            exit 1
+        }
+        create_repo_from_git "$2"
+        store_link "$2"
+
+        pkg=$(basename "$2" .git | tr '[:upper:]' '[:lower:]')
+        install_pkg "$pkg"
+    else
+        [[ -z "${1:-}" ]] && {
+            echo "Usage: pkgit ar <git-url>"
+            exit 1
+        }
+        create_repo_from_git "$1"
+        store_link "$1"
+    fi
+    ;;
+apr | add-pkgit-repo)
+    shift
     [[ -z "${1:-}" ]] && {
-        echo "Usage: pkgit ar <git-url>"
+        echo "Usage: pkgit apr <raw-file-url>"
         exit 1
     }
-    create_repo_from_git "$1"
-    store_link "$1"
-
+    if "$1" == "http"*; then
+        file=$(curl "$1")
+    else
+        file=$(cat "$1")
+    fi
+    for url in $file; do
+        create_repo_from_git "$url"
+        store_link "$url"
+    done
     ;;
 sy | sync)
     echo -e "$(color "$magenta" "[pkgit] *") Syncing repositories..."
