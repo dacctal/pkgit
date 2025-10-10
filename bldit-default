@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ -f "deps.sh" ]; then
+    source "deps.sh"
+else
+    DEPS=()
+fi
+
 PKGIT_GIT_URL="$1"
 pkg="$2"
 tag="$3"
-BUILD_DIR=$4
-BIN_DIR=$5
-PKGS_DIR=$6
-
-PKGIT_DEPS=()
+BUILD_DIR="$4"
+BIN_DIR="$5"
+PKGS_DIR="$6"
 
 SRC_DIR="$BUILD_DIR/$pkg-$tag"
 rm -rf "$SRC_DIR"
 
 install_dependencies() {
-    for dep in "${PKGIT_DEPS[@]:-}"; do
+    for dep in "${DEPS[@]:-}"; do
         [[ -z "$dep" ]] && continue
         depname=$(basename "$dep" .git | tr '[:upper:]' '[:lower:]')
         echo "[pkgit] Installing dependency: $depname"
@@ -24,11 +28,7 @@ install_dependencies() {
 }
 
 install_bins() {
-    [[ -d "$PKGS_DIR/$pkg/$tag/bin" ]] || {
-        echo "[pkgit] No bin/ directory, skipping executable symlinks"
-        return
-    }
-    find "$PKGS_DIR/$pkg/$tag/bin" -type f -executable -exec ln -sf {} "$BIN_DIR" \;
+    find "$PKGS_DIR/$pkg/$tag" -type f -executable -exec ln -sf {} "$BIN_DIR" \;
 }
 
 build() {

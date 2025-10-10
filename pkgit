@@ -8,7 +8,9 @@ ROOT="/var/lib/pkgit"
 BIN_DIR="/usr/local/bin"
 LIB_DIR="/usr/lib"
 INCLUDE_DIR="/usr/include"
+
 BLDIT_DIR="/etc/pkgit/bldit"
+USER_REPOS_DIR="/etc/pkgit/repos"
 
 REPOS_DIR="$ROOT/repos"
 PKGS_DIR="$ROOT/pkgs"
@@ -150,9 +152,10 @@ create_repo_from_git() {
 store_link() {
     local link="$1"
 
-    touch $REPOS_DIR/repos
-    if [[ ! $(cat "$REPOS_DIR/repos") =~ "$link" ]]; then
-        echo "$link" >>$REPOS_DIR/repos
+    touch $USER_REPOS_DIR/repos
+    #if [[ ! $(cat "$USER_REPOS_DIR/*") =~ "$link" ]]; then
+    if [[ ! $(grep "$link" "$USER_REPOS_DIR"/*) ]]; then
+        echo "$link" >>$USER_REPOS_DIR/repos
     fi
 }
 
@@ -190,6 +193,7 @@ install_pkg() {
 
     echo "[pkgit] Installing $pkg:$ver ..."
 
+    rm -rf "$BUILD_DIR/$pkg*"
     local build_dir="$BUILD_DIR/${pkg}-${ver}-$(date +%s)"
     rm -rf "$build_dir"
     mkdir -p "$build_dir"
@@ -197,10 +201,38 @@ install_pkg() {
 
     local url="$(cd $repodir && cat url)"
     local tag="$(cd $repodir && cat ver)"
-    echo "url: $url | pkg: $pkg | ver: $tag | bin-dir: $BIN_DIR | pkg-dir: $PKGS_DIR | build-dir: $BUILD_DIR"
-    bash "$BLDIT_DIR/$pkg" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
-        bash "$repodir/bldit" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" ||
-        bash "$BLDIT_DIR/bldit-default" "$url" "$pkg" "$tag" "$BUILD_DIR" "$BIN_DIR" "$PKGS_DIR" || {
+    local bldit_args=(
+        "$url"
+        "$pkg"
+        "$tag"
+        "$BUILD_DIR"
+        "$BIN_DIR"
+        "$PKGS_DIR"
+    )
+
+    echo """
+    url: $url
+    pkg: $pkg
+    ver: $tag
+    bin-dir: $BIN_DIR
+    pkg-dir: $PKGS_DIR
+    build-dir: $BUILD_DIR
+    """
+
+    user_bldit() {
+        echo "[pkgit] Trying user's bldit..."
+        bash "$BLDIT_DIR/$pkg" "${bldit_args[@]}"
+    }
+    repo_bldit() {
+        echo "[pkgit] Trying repo's bldit..."
+        bash "$repodir/bldit" "${bldit_args[@]}"
+    }
+    default_bldit() {
+        echo "[pkgit] Trying default bldit..."
+        bash "$BLDIT_DIR/bldit-default" "${bldit_args[@]}"
+    }
+
+    user_bldit || repo_bldit || default_bldit || {
         echo "[pkgit] Build FAILED for $pkg:$ver"
         return 1
     }
@@ -320,10 +352,10 @@ ar | add-repo)
             echo "Usage: pkgit ar <git-url>"
             exit 1
         }
-        create_repo_from_git "$2"
-        store_link "$2"
+        create_repo_from_git "${2:-}"
+        store_link "${2:-}"
 
-        pkg=$(basename "$2" .git | tr '[:upper:]' '[:lower:]')
+        pkg=$(basename "${2:-}" .git | tr '[:upper:]' '[:lower:]')
         install_pkg "$pkg"
     else
         [[ -z "${1:-}" ]] && {
@@ -353,12 +385,25 @@ apr | add-pkgit-repo)
 sy | sync)
     echo -e "$(color "$magenta" "[pkgit] *") Syncing repositories..."
     rm -rf "$REPOS_DIR/*/"
-    while IFS= read -r repo; do
-        echo ""
-        echo -e "$(color "$blue" "Syncing:") $(color "$green" "$repo")"
-        create_repo_from_git "$repo"
-        echo -e "$(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
-    done <"$REPOS_DIR/repos"
+    if [ -z "${2:-}" ]; then
+        files=("$USER_REPOS_DIR"/*)
+        echo ${files[@]}
+        for file in ${files[@]}; do
+            while IFS= read -r repo; do
+                echo ""
+                echo -e "$(color "$blue" "Syncing:") $(color "$green" "$repo")"
+                create_repo_from_git "$repo"
+                echo -e "$(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
+            done <"$file"
+        done
+    else
+        while IFS= read -r repo; do
+            echo ""
+            echo -e "$(color "$blue" "Syncing:") $(color "$green" "$repo")"
+            create_repo_from_git "$repo"
+            echo -e "$(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
+        done <"$USER_REPOS_DIR/${2:-*}"
+    fi
     echo ""
     echo -e "$(color "$green" "[pkgit] *") Sync completed."
     ;;
