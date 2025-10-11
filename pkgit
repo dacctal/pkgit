@@ -44,6 +44,14 @@ color() {
     echo "${1}$2${reset}"
 }
 
+echo_pkgit() {
+    echo -e "$(color "$yellow" "[")$(color "$magenta" "pkgit")$(color "$yellow" "]")"
+}
+
+echo_success() {
+    echo -e $(color "$green" "[SUCCESS]")
+}
+
 or() {
     color "$yellow" "|"
 }
@@ -78,8 +86,8 @@ mkdir_cmd() {
 
 for dir in "${PKGIT_ESSENTIAL_DIRS[@]}"; do
     if [ ! -d "$dir" ]; then
-        echo "[pkgit] your system is missing some essential pkgit directories."
-        echo "[pkgit] auto-generating pkgit directories..."
+        echo -e "$(echo_pkgit) your system is missing some essential pkgit directories."
+        echo -e "$(echo_pkgit) auto-generating pkgit directories..."
         mkdir_cmd "$dir"
     fi
 done
@@ -98,7 +106,7 @@ create_repo_from_git() {
     local pkgdir="$REPOS_DIR/$pkg"
     mkdir -p "$pkgdir"
 
-    echo "[pkgit] Creating repo(s) for $pkg from $url"
+    echo -e "$(echo_pkgit) Creating repo(s) for $pkg from $url"
 
     local tags
     if [[ -n "$requested_tag" ]]; then
@@ -106,7 +114,7 @@ create_repo_from_git() {
     else
         tags=$(git ls-remote --tags --refs "$url" 2>/dev/null | awk -F/ '{print $3}' |
             grep -E '^[0-9]+(\.[0-9]+)*$|^v[0-9]+(\.[0-9]+)*$' | sort -Vr | head -n 1) || {
-            echo "[pkgit] Warning: Could not fetch tags from $url" >&2
+            echo -e "$(echo_pkgit) Warning: Could not fetch tags from $url" >&2
             tags="HEAD"
         }
         [[ -n "$tags" ]] || tags="HEAD"
@@ -129,9 +137,9 @@ create_repo_from_git() {
             if [[ -f "$tmpclone/bldit" ]]; then
                 cp "$BLDIT_DIR/bldit-default" "$verdir/bldit"
                 chmod +x "$verdir/bldit"
-                echo "[pkgit] Using repo-provided bldit for $pkg:$tag"
+                echo -e "$(echo_pkgit) Using repo-provided bldit for $pkg:$tag"
             else
-                echo "[pkgit] No bldit in repo, using default from $BLDIT_DIR for $pkg:$tag"
+                echo -e "$(echo_pkgit) No bldit in repo, using default from $BLDIT_DIR for $pkg:$tag"
             fi
 
             if ! grep -qs "$url" "$verdir/url"; then
@@ -142,14 +150,14 @@ create_repo_from_git() {
             fi
             rm -rf "$tmpclone"
 
-            echo -e "$(color "$green" "[pkgit]") Repo ready for $(color "$green" "$pkg $tag") at $(color "$blue" "$verdir")"
+            echo -e "$(echo_pkgit) $(echo_success) Repo ready for $(color "$green" "$pkg $tag") at $(color "$blue" "$verdir")"
         fi
     done
 
     local latest_tag
     latest_tag=$(echo "$tags" | head -n1)
     update_latest_symlink "$pkg" "$latest_tag"
-    echo "[pkgit] LATEST symlink updated to $latest_tag"
+    echo -e "$(echo_pkgit) LATEST symlink updated to $latest_tag"
 }
 
 store_link() {
@@ -185,14 +193,14 @@ install_pkg() {
         if [[ -L "$REPOS_DIR/$pkg/LATEST" ]]; then
             repodir=$(readlink -f "$REPOS_DIR/$pkg/LATEST")
         else
-            echo "[pkgit] No LATEST version for $pkg"
+            echo -e "$(echo_pkgit) No LATEST version for $pkg"
             return 1
         fi
     fi
 
     if [[ ! -f "$BLDIT_DIR/$pkg" ]]; then
         if [[ ! -f "$BLDIT_DIR/bldit-default" ]]; then
-            echo "[pkgit] No bldit found for $pkg:$ver"
+            echo -e "$(echo_pkgit) No bldit found for $pkg:$ver"
             return 1
         fi
     fi
@@ -206,7 +214,7 @@ install_pkg() {
         fi
     fi
 
-    echo "[pkgit] Installing $pkg:$ver ..."
+    echo -e "$(echo_pkgit) Installing $pkg:$ver ..."
 
     rm -rf "$BUILD_DIR/$pkg*"
     local build_dir="$BUILD_DIR/${pkg}-${ver}-$(date +%s)"
@@ -235,25 +243,25 @@ install_pkg() {
     """
 
     user_bldit() {
-        echo "[pkgit] Trying user's bldit..."
+        echo -e "$(echo_pkgit) Trying user's bldit..."
         bash "$BLDIT_DIR/$pkg" "${bldit_args[@]}"
     }
     default_bldit() {
-        echo "[pkgit] Trying default bldit..."
+        echo -e "$(echo_pkgit) Trying default bldit..."
         bash "$BLDIT_DIR/bldit-default" "${bldit_args[@]}"
     }
 
     user_bldit || default_bldit || {
-        echo "[pkgit] Build FAILED for $pkg:$ver"
+        echo -e "$(echo_pkgit) Build FAILED for $pkg:$ver"
         return 1
     }
-    echo "[pkgit] Build executed for $pkg:$ver"
+    echo -e "$(echo_pkgit) Build executed for $pkg:$ver"
 
     local installed_dir="$PKGS_DIR/$pkg/$ver"
     [[ -d "$installed_dir" ]] || installed_dir=$(find "$PKGS_DIR/$pkg" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)
     if [[ -d "$installed_dir" ]]; then
         ln -sfn "$installed_dir" "$PKGS_DIR/$pkg/LATEST"
-        echo "[pkgit] Installed LATEST for $pkg -> $(basename "$installed_dir")"
+        echo -e "$(echo_pkgit) Installed LATEST for $pkg -> $(basename "$installed_dir")"
 
         if [[ -d "$installed_dir/bin" ]]; then
             mkdir -p "$BIN_DIR"
@@ -266,23 +274,23 @@ install_pkg() {
             for f in "$installed_dir/include/"*; do
                 [[ -f "$f" && -x "$f" ]] && ln -sf "$f" "$INCLUDE_DIR/$(basename "$f")"
             done
-            echo "[pkgit] Symlinked binaries for $pkg -> $BIN_DIR"
+            echo -e "$(echo_pkgit) Symlinked binaries for $pkg -> $BIN_DIR"
         fi
     else
-        echo "[pkgit] WARNING: no installed files found for $pkg:$ver"
+        echo -e "$(echo_pkgit) WARNING: no installed files found for $pkg:$ver"
     fi
 
-    echo "[pkgit] Finished install of $pkg:$ver"
+    echo -e "$(echo_pkgit) Finished install of $pkg:$ver"
 }
 
 remove_pkg() {
     local pkg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
     [[ -z "$pkg" ]] && {
-        echo "[pkgit] No package specified"
+        echo -e "$(echo_pkgit) No package specified"
         return 1
     }
     [[ -d "$PKGS_DIR/$pkg" ]] || {
-        echo "[pkgit] Package $pkg not installed"
+        echo -e "$(echo_pkgit) Package $pkg not installed"
         return 1
     }
 
@@ -293,22 +301,22 @@ remove_pkg() {
     fi
 
     rm -rf "$BIN_DIR/$pkg" "$PKGS_DIR/$pkg" "$BUILD_DIR/$pkg-"*
-    echo "[pkgit] Removed $pkg"
+    echo -e "$(echo_pkgit) Removed $pkg"
 }
 
 remove_repo() {
     local repo=$(echo "$1" | tr '[:upper:]' '[:lower:]')
     [[ -z "$repo" ]] && {
-        echo "[pkgit] No repo specified"
+        echo -e "$(echo_pkgit) No repo specified"
         return 1
     }
     [[ -d "$REPOS_DIR/$repo" ]] || {
-        echo "[pkgit] Repo $repo does not exist"
+        echo -e "$(echo_pkgit) Repo $repo does not exist"
         return 1
     }
 
     rm -rf "$REPOS_DIR/$repo"
-    echo "[pkgit] Removed $repo"
+    echo -e "$(echo_pkgit) Removed $repo"
 }
 
 search_pkgs() {
@@ -394,7 +402,7 @@ apr | add-pkgit-repo)
     done
     ;;
 sy | sync)
-    echo -e "$(color "$magenta" "[pkgit] *") Syncing repositories..."
+    echo -e "$(color "$magenta" "[pkgit]") Syncing repositories..."
     rm -rf "$REPOS_DIR/*/"
     if [ -z "${2:-}" ]; then
         files=("$USER_REPOS_DIR"/*)
@@ -402,32 +410,32 @@ sy | sync)
         for file in ${files[@]}; do
             while IFS= read -r repo; do
                 echo ""
-                echo -e "$(color "$blue" "Syncing:") $(color "$green" "$repo")"
+                echo -e "$(echo_pkgit) $(color "$blue" "[REPO]") Syncing: $(color "$green" "$repo")"
                 create_repo_from_git "$repo"
-                echo -e "$(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
+                echo -e "$(echo_pkgit) $(echo_success) Sync completed for: $(color "$green" "$repo")"
             done <"$file"
         done
     else
         while IFS= read -r repo; do
             echo ""
-            echo -e "$(color "$blue" "Syncing:") $(color "$green" "$repo")"
+            echo -e "$(echo_pkgit) $(color "$blue" "Syncing:") $(color "$green" "$repo")"
             create_repo_from_git "$repo"
-            echo -e "$(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
+            echo -e "$(echo_pkgit) $(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
         done <"$USER_REPOS_DIR/${2:-*}"
     fi
     echo ""
-    echo -e "$(color "$green" "[pkgit] *") Sync completed."
+    echo -e "$(echo_pkgit) $(echo_success) Sync completed."
     ;;
 up | update)
-    echo -e "$(color "$magenta" "[pkgit] *") Updating installed packages..."
+    echo -e "$(echo_pkgit) $(color "$magenta" "[STATUS]") Updating installed packages..."
     for pkg in "$PKGS_DIR"/*; do
         qpkg=$(basename "$pkg")
-        echo -e "$(color "$blue" "[pkgit] *") Updating: $qpkg"
+        echo -e "$(echo_pkgit) $(color "$blue" "[PACKAGE]") Updating: $qpkg"
         install_pkg "$qpkg"
-        echo -e "$(color "$blue" "[pkgit] *") Update completed for: $qpkg"
+        echo -e "$(echo_pkgit) $(color "$blue" "[PACKAGE]") Update completed for: $qpkg"
     done
     echo ""
-    echo -e "$(color "$green" "[pkgit] *") All installed packages have been updated."
+    echo -e "$(echo_pkgit) $(echo_success) All installed packages have been updated."
     ;;
 ug | upgrade)
     curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
