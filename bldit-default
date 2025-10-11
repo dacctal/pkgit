@@ -84,12 +84,20 @@ if [ -f "bldit" ]; then
 elif [ -f "autogen.sh" ]; then
     echo "Detected autogen.sh build system"
     ./autogen.sh --prefix="$INSTALL_DIR"
-    make
+    make -j$(($(nproc) / 2))
     make install
+
+elif [ -f "cabal.project" ] || [ -f *".cabal" ]; then
+    echo "Detected Cabal build system"
+    cabal update
+    cabal install --only-dependencies
+    cabal configure --prefix="$INSTALL_DIR" -fembed_data_files
+    cabal build
+    cabal haddock --html-location=URL --hyperlink-source
 
 elif [ -f "Makefile" ]; then
     echo "Detected Make build system"
-    make
+    make -j$(($(nproc) / 2))
     make install PREFIX="$INSTALL_DIR"
 
 elif [ -f "CMakeLists.txt" ]; then

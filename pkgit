@@ -175,6 +175,11 @@ install_pkg() {
     fi
     pkg=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
 
+    if [ -d "$PKGS_DIR/$pkg/$ver" ]; then
+        echo "$pkg:$ver already installed."
+        exit 0
+    fi
+
     local repodir="$REPOS_DIR/$pkg/$ver"
     if [[ "$ver" == "LATEST" ]]; then
         if [[ -L "$REPOS_DIR/$pkg/LATEST" ]]; then
