@@ -22,21 +22,45 @@ fi
 cd "$SRC_DIR"
 
 if [ -f "/etc/pkgit/deps/$pkg.sh" ]; then
+    echo "grabbing user-defined dependencies..."
     source "/etc/pkgit/deps/$pkg.sh"
 elif [ -f "deps.sh" ]; then
+    echo "grabbing repo-defined dependencies..."
     source "deps.sh"
 else
     DEPS=()
 fi
 
+#install_dependencies() {
+#    echo "Dependencies: ${DEPS[@]}"
+#    for dep in "${DEPS[@]:-}"; do
+#        [[ -z "$dep" ]] && continue
+#        depname=$(basename "$dep" .git | tr '[:upper:]' '[:lower:]')
+#        echo "[pkgit] Installing dependency: $depname"
+#        pkgit ar "$dep"
+#        pkgit i "$depname"
+#    done
+#}
+
 install_dependencies() {
     echo "Dependencies: ${DEPS[@]}"
     for dep in "${DEPS[@]:-}"; do
         [[ -z "$dep" ]] && continue
-        depname=$(basename "$dep" .git | tr '[:upper:]' '[:lower:]')
-        echo "[pkgit] Installing dependency: $depname"
-        pkgit ar "$dep"
-        pkgit i "$depname"
+
+        # Split URL and version (if provided)
+        url=$(awk '{print $1}' <<<"$dep")
+        ver=$(awk '{print $2}' <<<"$dep")
+
+        depname=$(basename "$url" .git | tr '[:upper:]' '[:lower:]')
+        echo "[pkgit] Installing dependency: $depname (url: $url version: ${ver:-none})"
+
+        if [[ -n "$ver" ]]; then
+            pkgit ar "$url" "$ver"
+            pkgit i "$depname:$ver"
+        else
+            pkgit ar "$url"
+            pkgit i "$depname"
+        fi
     done
 }
 
@@ -81,7 +105,7 @@ elif [ -f "Cargo.toml" ]; then
     echo "Detected Cargo (Rust) build system"
     cargo build --release
     mkdir -p "$INSTALL_DIR/bin"
-    cp target/release/* "$INSTALL_DIR/bin/"
+    cp -r target/release/* "$INSTALL_DIR/bin/"
 
 elif [ -f "build.zig" ]; then
     echo "Detected Zig build system"
