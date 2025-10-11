@@ -62,7 +62,8 @@ exmpl() {
 
 shortopt() {
     if [ $# == 2 ]; then
-        echo "$(color "$bold_green" "$1") $(exmpl "$2")" else
+        echo "$(color "$bold_green" "$1") $(exmpl "$2")"
+    else
         color "$bold_green" "$1"
     fi
 }
