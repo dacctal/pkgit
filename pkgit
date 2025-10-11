@@ -54,8 +54,7 @@ exmpl() {
 
 shortopt() {
     if [ $# == 2 ]; then
-        echo "$(color "$bold_green" "$1") $(exmpl "$2")"
-    else
+        echo "$(color "$bold_green" "$1") $(exmpl "$2")" else
         color "$bold_green" "$1"
     fi
 }
@@ -123,23 +122,22 @@ create_repo_from_git() {
             fi
 
             if [[ -f "$tmpclone/bldit" ]]; then
-                cp "$tmpclone/bldit" "$verdir/bldit"
+                cp "$BLDIT_DIR/bldit-default" "$verdir/bldit"
+                chmod +x "$verdir/bldit"
                 echo "[pkgit] Using repo-provided bldit for $pkg:$tag"
             else
-                cp "$BLDIT_DIR/bldit-default" "$verdir/bldit"
                 echo "[pkgit] No bldit in repo, using default from $BLDIT_DIR for $pkg:$tag"
             fi
 
-            if ! grep -q "$url" = "$verdir/url"; then
+            if ! grep -qs "$url" "$verdir/url"; then
                 echo "$url" >>"$verdir/url"
             fi
-            if ! grep -q "$tag" = "$verdir/ver"; then
+            if ! grep -qs "$tag" "$verdir/ver"; then
                 echo "$tag" >>"$verdir/ver"
             fi
-            chmod +x "$verdir/bldit"
             rm -rf "$tmpclone"
 
-            echo "[pkgit] Repo ready for $pkg $tag at $verdir"
+            echo -e "$(color "$green" "[pkgit]") Repo ready for $(color "$green" "$pkg $tag") at $(color "$blue" "$verdir")"
         fi
     done
 
@@ -182,12 +180,10 @@ install_pkg() {
         fi
     fi
 
-    if [[ ! -f "$repodir/bldit" ]]; then
-        if [[ ! -f "$BLDIT_DIR/$pkg" ]]; then
-            if [[ ! -f "$BLDIT_DIR/bldit-default" ]]; then
-                echo "[pkgit] No bldit found for $pkg:$ver"
-                return 1
-            fi
+    if [[ ! -f "$BLDIT_DIR/$pkg" ]]; then
+        if [[ ! -f "$BLDIT_DIR/bldit-default" ]]; then
+            echo "[pkgit] No bldit found for $pkg:$ver"
+            return 1
         fi
     fi
 
@@ -223,16 +219,12 @@ install_pkg() {
         echo "[pkgit] Trying user's bldit..."
         bash "$BLDIT_DIR/$pkg" "${bldit_args[@]}"
     }
-    repo_bldit() {
-        echo "[pkgit] Trying repo's bldit..."
-        bash "$repodir/bldit" "${bldit_args[@]}"
-    }
     default_bldit() {
         echo "[pkgit] Trying default bldit..."
         bash "$BLDIT_DIR/bldit-default" "${bldit_args[@]}"
     }
 
-    user_bldit || repo_bldit || default_bldit || {
+    user_bldit || default_bldit || {
         echo "[pkgit] Build FAILED for $pkg:$ver"
         return 1
     }

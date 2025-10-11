@@ -1,10 +1,15 @@
-# pkgit
-package it!
+<div align="center">
+
+  ![logo](./assets/logo.png)
+  
+*(package it!)*
+
+</div>
 
 ## what is this?
 pkgit is an unconventional package manager designed to create package repos purely from that package's git repo.
 
-As it is, pkgit is not capable of dependency management, so you will have to manage your own dependencies for each package you install. There's not a universal way to check for dependencies without using an existing package manager.
+As it is, pkgit is capable of dependency management, but you will likely have to determine the dependency URLs for each package you install (`/etc/pkgit/deps/[pkg-name]`). There's not a universal way to check for dependencies without using an existing package manager (unless the repo you're installing has a deps.sh file).
 
 ## installation
 you can install pkgit by simply pasting the following command into your terminal:
