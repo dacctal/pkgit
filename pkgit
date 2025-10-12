@@ -290,20 +290,24 @@ build_sh() {
         if [ -f "autogen.sh" ]; then
             echo "Detected autogen.sh build system"
             if ! ./autogen.sh --prefix="$INSTALL_DIR"; then
-                echo "autogen.sh failed" >&2
+                echo "$(echo_pkgit) $(color "$red" "[ERROR]") autogen.sh failed" >&2
                 exit 1
             fi
             if ! make -j$(($(nproc) / 2)); then
-                echo "make failed" >&2
+                echo "$(echo_pkgit) $(color "$red" "[ERROR]") make failed. is it installed?" >&2
                 exit 1
             fi
             if ! make install; then
-                echo "make install failed" >&2
+                echo "$(echo_pkgit) $(color "$red" "[ERROR]") make install failed" >&2
                 exit 1
             fi
 
         elif [ -f "cabal.project" ] || [ -f *".cabal" ]; then
             echo "Detected Cabal build system"
+            if ! cabal; then
+                echo "$(echo_pkgit) $(color "$red" "[ERROR]") cabal failed. is it installed?" >&2
+                exit 1
+            fi
             cabal update
             cabal install --only-dependencies
             cabal configure --prefix="$INSTALL_DIR" -fembed_data_files
@@ -746,7 +750,8 @@ up | update)
     update
     ;;
 ug | upgrade)
-    curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
+    repo_from_git "https://github.com/dacctal/pkgit"
+    install_pkg "pkgit"
     ;;
 h | help | *)
     pkgit_help
