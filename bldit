@@ -9,11 +9,15 @@ else
     exit 1
 fi
 
+if ((EUID != 0)); then
+    exec "$su" "$0" "$@"
+fi
+
 if [ -f "pkgit" ]; then
-    $su chmod +x *
-    $su cp pkgit /usr/bin
+    chmod +x *
+    cp pkgit /usr/bin
 else
-    "$su" curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/pkgit" >>pkgit
-    "$su" chmod +x pkgit
-    "$su" mv pkgit /usr/bin
+    curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/pkgit" >>pkgit
+    chmod +x pkgit
+    mv pkgit /usr/bin
 fi
