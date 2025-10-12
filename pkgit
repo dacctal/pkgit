@@ -1,27 +1,43 @@
 #!/usr/bin/env bash
-# pkgit - package it!
+
+if command -v doas >/dev/null; then
+    su=doas
+elif command -v sudo >/dev/null; then
+    su=sudo
+else
+    echo "[ERROR] Cannot get root access"
+    exit 1
+fi
+
 set -euo pipefail
 
 VERSION="0.0.1"
+
+PKGIT_LOC=$(dirname "$(readlink -f "${BASH_SOURCE}")")
+PKGIT_SCRIPT="$PKGIT_LOC/$(basename "${BASH_SOURCE[0]}")"
 
 ROOT="/var/lib/pkgit"
 BIN_DIR="/usr/local/bin"
 LIB_DIR="/usr/lib"
 INCLUDE_DIR="/usr/include"
+PKGS_DIR="$ROOT/pkgs"
+BUILD_DIR="$ROOT/build"
 
 BLDIT_DIR="/etc/pkgit/bldit"
 USER_REPOS_DIR="/etc/pkgit/repos"
 
-REPOS_DIR="$ROOT/repos"
-PKGS_DIR="$ROOT/pkgs"
-BUILD_DIR="$ROOT/build"
-
 PKGIT_ESSENTIAL_DIRS=(
     "$ROOT"
-    "$REPOS_DIR"
+    "$BIN_DIR"
+    "$LIB_DIR"
+    "$INCLUDE_DIR"
     "$PKGS_DIR"
     "$BUILD_DIR"
-    "$BIN_DIR"
+)
+
+PKGIT_CONFIG_DIRS=(
+    "$BLDIT_DIR"
+    "$USER_REPOS_DIR"
 )
 
 red='\033[0;31m'
@@ -80,139 +96,348 @@ desc() {
     color "$gray" "$1"
 }
 
-mkdir_cmd() {
-    local dirs=("$@")
-    mkdir -p "${dirs[@]}"
-}
-
-for dir in "${PKGIT_ESSENTIAL_DIRS[@]}"; do
-    if [ ! -d "$dir" ]; then
-        echo -e "$(echo_pkgit) your system is missing some essential pkgit directories."
-        echo -e "$(echo_pkgit) auto-generating pkgit directories..."
-        mkdir_cmd "$dir"
+autogen() {
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
     fi
-done
-
-update_latest_symlink() {
-    local pkg="$1" ver="$2"
-    local pkgdir="$REPOS_DIR/$pkg"
-    mkdir_cmd "$pkgdir" || return 1
-    ln -sfn "$ver" "$pkgdir/LATEST.tmp" && mv -f "$pkgdir/LATEST.tmp" "$pkgdir/LATEST"
+    for dir in "${PKGIT_ESSENTIAL_DIRS[@]}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            echo -e "$(echo_pkgit) successfully generated $dir"
+        fi
+    done
+    for dir in "${PKGIT_CONFIG_DIRS[@]}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            echo -e "$(echo_pkgit) successfully generated $dir"
+        fi
+    done
 }
 
-create_repo_from_git() {
+repo_from_git() {
     local url="$1"
-    local requested_tag="${2:-}"
+    local req_tag="${2:-}"
     local pkg=$(basename "$url" .git | tr '[:upper:]' '[:lower:]')
-    local pkgdir="$REPOS_DIR/$pkg"
-    mkdir -p "$pkgdir"
-
-    echo -e "$(echo_pkgit) Creating repo(s) for $pkg from $url"
 
     local tags
-    if [[ -n "$requested_tag" ]]; then
-        tags="$requested_tag"
+    if [[ -n "$req_tag" ]]; then
+        tags="$req_tag"
     else
-        tags=$(git ls-remote --tags --refs "$url" 2>/dev/null | awk -F/ '{print $3}' |
-            grep -E '^[0-9]+(\.[0-9]+)*$|^v[0-9]+(\.[0-9]+)*$' | sort -Vr | head -n 1) || {
+        tags=$(git ls-remote --tags --refs "$url" 2>/dev/null |
+            awk -F/ '{print $3}' |
+            grep -E '^[0-9]+(\.[0-9]+)*$|^v[0-9]+(\.[0-9]+)*$' |
+            sort -Vr |
+            head -n 1) || {
             echo -e "$(echo_pkgit) Warning: Could not fetch tags from $url" >&2
             tags="HEAD"
         }
         [[ -n "$tags" ]] || tags="HEAD"
     fi
 
-    for tag in $tags; do
-        local verdir="$pkgdir/$tag"
-
-        if [ ! -d "$verdir" ]; then
-            mkdir -p "$verdir"
-
-            local tmpclone
-            tmpclone="$(mktemp -d)"
-            if [[ "$tag" == "HEAD" ]]; then
-                git -c advice.detachedHead=false clone --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
-            else
-                git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$url" "$tmpclone" >/dev/null 2>&1
-            fi
-
-            if [[ -f "$tmpclone/bldit" ]]; then
-                cp "$BLDIT_DIR/bldit-default" "$verdir/bldit"
-                chmod +x "$verdir/bldit"
-                echo -e "$(echo_pkgit) Using repo-provided bldit for $pkg:$tag"
-            else
-                echo -e "$(echo_pkgit) No bldit in repo, using default from $BLDIT_DIR for $pkg:$tag"
-            fi
-
-            if ! grep -qs "$url" "$verdir/url"; then
-                echo "$url" >>"$verdir/url"
-            fi
-            if ! grep -qs "$tag" "$verdir/ver"; then
-                echo "$tag" >>"$verdir/ver"
-            fi
-            rm -rf "$tmpclone"
-
-            echo -e "$(echo_pkgit) $(echo_success) Repo ready for $(color "$green" "$pkg $tag") at $(color "$blue" "$verdir")"
-        fi
-    done
-
     local latest_tag
-    latest_tag=$(echo "$tags" | head -n1)
-    update_latest_symlink "$pkg" "$latest_tag"
-    echo -e "$(echo_pkgit) LATEST symlink updated to $latest_tag"
+    latest_tag=$(echo "$tags" | head -n 1)
+
+    touch "$USER_REPOS_DIR/repos"
+    if [[ ! $(grep "$url" "$USER_REPOS_DIR/repos") ]] ||
+        [[ ! $(grep "${url%.git}" "$USER_REPOS_DIR/repos") ]]; then
+        echo "$pkg $url" | tee -a "$USER_REPOS_DIR/repos" >/dev/null
+    fi
+
+    echo "$latest_tag"
 }
 
-store_link() {
-    local link="$1"
-
-    touch $USER_REPOS_DIR/repos
-    #if [[ ! $(cat "$USER_REPOS_DIR/*") =~ "$link" ]]; then
-    if [[ ! $(grep "$link" "$USER_REPOS_DIR"/*) ]]; then
-        echo "$link" >>$USER_REPOS_DIR/repos
+add_repo_pkg() {
+    [[ -z "${1:-}" ]] && {
+        echo "Usage: pkgit arp <raw-file-url>"
+        exit 1
+    }
+    if [[ "$1" == http* ]]; then
+        file=$(curl "$1")
+    else
+        file=$(cat "$1")
     fi
+    for url in $file; do
+        repo_from_git "$url"
+    done
+}
+
+sync() {
+    echo -e "$(color "$magenta" "[pkgit]") Syncing repositories..."
+    if [ -z "${2:-}" ]; then
+        files=("$USER_REPOS_DIR"/*)
+        echo ${files[@]}
+        for file in "${files[@]}"; do
+            while IFS= read -r repo; do
+                echo ""
+                echo -e "$(echo_pkgit) $(color "$blue" "[REPO]") Syncing: $(color "$green" "$repo")"
+                repo_from_git "$repo"
+                echo -e "$(echo_pkgit) $(echo_success) Sync completed for: $(color "$green" "$repo")"
+            done <"$file"
+        done
+    else
+        while IFS= read -r repo; do
+            echo ""
+            echo -e "$(echo_pkgit) $(color "$blue" "Syncing:") $(color "$green" "$repo")"
+            repo_from_git "$repo"
+            echo -e "$(echo_pkgit) $(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
+        done <"$USER_REPOS_DIR/${2:-*}"
+    fi
+    echo ""
+    echo -e "$(echo_pkgit) $(echo_success) Sync completed."
+}
+
+build_sh() {
+    set -euo pipefail
+
+    PKGIT_GIT_URL="$1"
+    pkg="$2"
+    tag="$3"
+    BUILD_DIR="$4"
+    BIN_DIR="$5"
+    PKGS_DIR="$6"
+
+    INSTALL_DIR="$PKGS_DIR/$pkg/$tag"
+
+    SRC_DIR="$BUILD_DIR/$pkg-$tag"
+    rm -rf "$SRC_DIR"
+
+    if [[ "$tag" == "HEAD" ]]; then
+        git -c advice.detachedHead=false clone --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
+    else
+        git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
+    fi
+
+    cd "$SRC_DIR"
+    echo "$SRC_DIR"
+
+    prompt_source_script() {
+        local script="$1"
+        echo -e "$(echo_pkgit) $(color "$yellow" "[YIELD]") Dependency script content:"
+        echo ""
+        echo "# --- START --- #"
+        echo ""
+        cat "$script"
+        echo ""
+        echo "# --- END --- #"
+        echo ""
+        read -rp "$(echo_pkgit) Do you trust this dependency script? (y/N) " answer
+        if [[ "$answer" == [Yy]* ]]; then
+            source "$script"
+        else
+            echo -e "$(echo_pkgit) Skipping $script"
+            DEPS=()
+        fi
+    }
+
+    if [ -f "/etc/pkgit/deps/$pkg.sh" ]; then
+        echo -e "$(echo_pkgit) grabbing user-defined dependencies..."
+        prompt_source_script "/etc/pkgit/deps/$pkg.sh"
+    elif [ -f "deps.sh" ]; then
+        echo -e "$(echo_pkgit) grabbing repo-defined dependencies..."
+        chmod +x deps.sh
+        prompt_source_script "deps.sh"
+    else
+        DEPS=()
+    fi
+
+    install_dependencies() {
+        echo -e "$(echo_pkgit) Dependencies: ${DEPS[@]}"
+        for dep in "${DEPS[@]:-}"; do
+            [[ -z "$dep" ]] && continue
+
+            url=$(awk '{print $1}' <<<"$dep")
+            ver=$(awk '{print $2}' <<<"$dep")
+
+            depname=$(basename "$url" .git | tr '[:upper:]' '[:lower:]')
+            echo "[pkgit] Installing dependency: $depname (url: $url version: ${ver:-none})"
+
+            if [[ -n "$ver" ]]; then
+                $PKGIT_SCRIPT ar "$url" "$ver"
+                $PKGIT_SCRIPT i "$depname:$ver"
+            else
+                $PKGIT_SCRIPT ar "$url"
+                $PKGIT_SCRIPT i "$depname"
+            fi
+        done
+    }
+
+    install_bins() {
+        find "$PKGS_DIR/$pkg/$tag" -type f -executable -exec ln -sf {} "$BIN_DIR" \;
+    }
+
+    copy_executables() {
+        echo "Copying executable files recursively to $INSTALL_DIR"
+        mkdir -p "$INSTALL_DIR"
+        find . -type f -executable -exec cp --parents {} "$INSTALL_DIR" \;
+    }
+
+    build() {
+        if [ -f "bldit" ]; then
+            source bldit
+            bldit
+            copy_executables
+
+        elif [ -f "autogen.sh" ]; then
+            echo "Detected autogen.sh build system"
+            ./autogen.sh --prefix="$INSTALL_DIR"
+            make -j$(($(nproc) / 2))
+            make install
+
+        elif [ -f "cabal.project" ] || [ -f *".cabal" ]; then
+            echo "Detected Cabal build system"
+            cabal update
+            cabal install --only-dependencies
+            cabal configure --prefix="$INSTALL_DIR" -fembed_data_files
+            cabal build
+            cabal haddock --html-location=URL --hyperlink-source
+
+        elif [ -f "Makefile" ]; then
+            echo "Detected Make build system"
+            make -j$(($(nproc) / 2))
+            make install PREFIX="$INSTALL_DIR"
+
+        elif [ -f "CMakeLists.txt" ]; then
+            echo "Detected CMake build system"
+            mkdir -p build
+            cd build
+            cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ..
+            make
+            make install
+            cd ..
+
+        elif [ -f "Cargo.toml" ]; then
+            echo "Detected Cargo (Rust) build system"
+            cargo build --release
+            mkdir -p "$INSTALL_DIR/bin"
+            cp -r target/release/* "$INSTALL_DIR/bin/"
+
+        elif [ -f "build.zig" ]; then
+            echo "Detected Zig build system"
+            zig build -Dprefix="$INSTALL_DIR"
+            zig build install
+
+        elif [ -f "meson.build" ]; then
+            echo "Detected Meson build system"
+            meson setup build --prefix="$INSTALL_DIR"
+            meson compile -C build
+            meson install -C build
+
+        elif [ -f "build.ninja" ]; then
+            echo "Detected Ninja build system"
+            ninja
+            ninja install
+
+        elif [ -f "SConstruct" ]; then
+            echo "Detected SCons build system"
+            scons prefix="$INSTALL_DIR"
+            scons install prefix="$INSTALL_DIR"
+
+        elif [ -f "configure.ac" ] || [ -f "configure" ]; then
+            echo "Detected Autotools build system"
+            ./configure --prefix="$INSTALL_DIR"
+            make
+            make install
+
+        elif [ -f "build.gradle" ]; then
+            if grep -q "kotlin" build.gradle; then
+                echo "Detected Gradle Kotlin DSL build system"
+            else
+                echo "Detected Gradle build system"
+            fi
+            gradle build
+            mkdir -p "$INSTALL_DIR/libs"
+            cp build/libs/* "$INSTALL_DIR/libs/"
+
+        elif [ -f "BUILD" ] || [ -f "WORKSPACE" ]; then
+            echo "Detected Bazel build system"
+            bazel build //:all
+            copy_executables
+
+        elif [ -f "BUCK" ]; then
+            echo "Detected Buck build system"
+            buck build //...
+            copy_executables
+
+        elif [ -f "pants.toml" ] || [ -f "pants.ini" ] || [ -f "pants.yaml" ]; then
+            echo "Detected Pants build system"
+            pants build ::
+            copy_executables
+
+        elif [ -f "flake.nix" ]; then
+            echo "Detected Nix flake build system"
+            nix build
+            mkdir -p "$INSTALL_DIR"
+            cp -r ./result/* "$INSTALL_DIR/"
+
+        elif [ -f "default.nix" ]; then
+            echo "Detected Nix build system"
+            nix-build
+            mkdir -p "$INSTALL_DIR"
+            cp -r ./result/* "$INSTALL_DIR/"
+
+        elif [ -f "build.sbt" ]; then
+            echo "Detected SBT (Scala) build system"
+            sbt compile
+            sbt publishLocal
+            copy_executables
+
+        elif [ -f "esbuild.config.js" ] || [ -f "esbuild.config.ts" ]; then
+            echo "Detected ESbuild build system"
+            esbuild --outdir="$INSTALL_DIR"
+
+        elif [ -f "webpack.config.js" ]; then
+            echo "Detected Webpack build system"
+            webpack --output-path "$INSTALL_DIR"
+
+        elif [ -f "conanfile.txt" ] || [ -f "conanfile.py" ]; then
+            echo "Detected Conan build system"
+            conan install . --install-folder build --build=missing
+            conan build . --build-folder build
+            copy_executables
+
+        elif [ -f "Earthfile" ]; then
+            echo "Detected Earthly build system"
+            earthly --build-arg INSTALL_DIR="$INSTALL_DIR" +default
+
+        elif [ -f "dagger.hcl" ] || [ -f "dagger.yaml" ]; then
+            echo "Detected Dagger build system"
+            dagger do build
+            copy_executables
+
+        else
+            echo "[pkgit] No recognized build system in $SRC_DIR"
+            exit 1
+        fi
+    }
+
+    install_dependencies
+    build
+    install_bins
+    echo "Build and install completed successfully."
 }
 
 install_pkg() {
     local input="$1"
     local pkg ver
-
     if [[ "$input" == *:* ]]; then
         pkg="${input%%:*}"
+        url=$(grep "$pkg" "$USER_REPOS_DIR"/* | awk '{print $2}')
         ver="${input##*:}"
     else
         pkg="$input"
-        ver="LATEST"
+        url=$(grep "$pkg" "$USER_REPOS_DIR"/* | awk '{print $2}')
+        ver=$(repo_from_git $(grep "$url" "$USER_REPOS_DIR"/* | awk '{print $2}'))
     fi
-    pkg=$(echo "$pkg" | tr '[:upper:]' '[:lower:]')
+
+    rm -rf "${BUILD_DIR}/${pkg}-"*
 
     if [ -d "$PKGS_DIR/$pkg/$ver" ]; then
         echo "$pkg:$ver already installed."
         exit 0
     fi
 
-    local repodir="$REPOS_DIR/$pkg/$ver"
-    if [[ "$ver" == "LATEST" ]]; then
-        if [[ -L "$REPOS_DIR/$pkg/LATEST" ]]; then
-            repodir=$(readlink -f "$REPOS_DIR/$pkg/LATEST")
-        else
-            echo -e "$(echo_pkgit) No LATEST version for $pkg"
-            return 1
-        fi
-    fi
-
     if [[ ! -f "$BLDIT_DIR/$pkg" ]]; then
-        if [[ ! -f "$BLDIT_DIR/bldit-default" ]]; then
-            echo -e "$(echo_pkgit) No bldit found for $pkg:$ver"
-            return 1
-        fi
-    fi
-
-    if [ ! -d "$repodir" ]; then
-        local url="$(cat $REPOS_DIR/$pkg/*/url | head -n 1)"
-        if [[ "$ver" == "LATEST" ]]; then
-            pkgit ar "$url"
-        else
-            pkgit ar "$url" "$ver"
-        fi
+        echo -e "$(echo_pkgit) using default bldit for $pkg:$ver"
     fi
 
     echo -e "$(echo_pkgit) Installing $pkg:$ver ..."
@@ -223,12 +448,10 @@ install_pkg() {
     mkdir -p "$build_dir"
     export ROOT PKGS_DIR BIN_DIR BUILD_DIR="$build_dir"
 
-    local url="$(cd $repodir && cat url)"
-    local tag="$(cd $repodir && cat ver)"
     local bldit_args=(
         "$url"
         "$pkg"
-        "$tag"
+        "$ver"
         "$BUILD_DIR"
         "$BIN_DIR"
         "$PKGS_DIR"
@@ -237,22 +460,17 @@ install_pkg() {
     echo """
     url: $url
     pkg: $pkg
-    ver: $tag
+    ver: $ver
     bin-dir: $BIN_DIR
     pkg-dir: $PKGS_DIR
     build-dir: $BUILD_DIR
     """
 
-    user_bldit() {
-        echo -e "$(echo_pkgit) Trying user's bldit..."
-        bash "$BLDIT_DIR/$pkg" "${bldit_args[@]}"
-    }
     default_bldit() {
-        echo -e "$(echo_pkgit) Trying default bldit..."
-        bash "$BLDIT_DIR/bldit-default" "${bldit_args[@]}"
+        build_sh "${bldit_args[@]}"
     }
 
-    user_bldit || default_bldit || {
+    default_bldit || {
         echo -e "$(echo_pkgit) Build FAILED for $pkg:$ver"
         return 1
     }
@@ -261,8 +479,8 @@ install_pkg() {
     local installed_dir="$PKGS_DIR/$pkg/$ver"
     [[ -d "$installed_dir" ]] || installed_dir=$(find "$PKGS_DIR/$pkg" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)
     if [[ -d "$installed_dir" ]]; then
-        ln -sfn "$installed_dir" "$PKGS_DIR/$pkg/LATEST"
-        echo -e "$(echo_pkgit) Installed LATEST for $pkg -> $(basename "$installed_dir")"
+        ln -sfn "$installed_dir" "$PKGS_DIR/$pkg/HEAD"
+        echo -e "$(echo_pkgit) Installed HEAD for $pkg -> $(basename "$installed_dir")"
 
         if [[ -d "$installed_dir/bin" ]]; then
             mkdir -p "$BIN_DIR"
@@ -282,6 +500,18 @@ install_pkg() {
     fi
 
     echo -e "$(echo_pkgit) Finished install of $pkg:$ver"
+}
+
+update() {
+    echo -e "$(echo_pkgit) $(color "$magenta" "[STATUS]") Updating installed packages..."
+    for pkg in "$PKGS_DIR"/*; do
+        qpkg=$(basename "$pkg")
+        echo -e "$(echo_pkgit) $(color "$blue" "[PACKAGE]") Updating: $qpkg"
+        install_pkg "$qpkg"
+        echo -e "$(echo_pkgit) $(color "$blue" "[PACKAGE]") Update completed for: $qpkg"
+    done
+    echo ""
+    echo -e "$(echo_pkgit) $(echo_success) All installed packages have been updated."
 }
 
 remove_pkg() {
@@ -311,23 +541,15 @@ remove_repo() {
         echo -e "$(echo_pkgit) No repo specified"
         return 1
     }
-    [[ -d "$REPOS_DIR/$repo" ]] || {
+    [[ $(grep "$repo" "$USER_REPOS_DIR"/*) ]] || {
         echo -e "$(echo_pkgit) Repo $repo does not exist"
         return 1
     }
 
-    rm -rf "$REPOS_DIR/$repo"
-    echo -e "$(echo_pkgit) Removed $repo"
-}
-
-search_pkgs() {
-    local search_terms="${@:2}"
-    echo ""
-    for term in $search_terms; do
-        echo "results for: $term"
-        ls -1 "$REPOS_DIR" | grep -F "$term"
-        echo ""
+    for file in "$USER_REPOS_DIR"/*; do
+        sed -i "/$repo/d" $file
     done
+    echo -e "$(echo_pkgit) Removed $repo"
 }
 
 list_pkgs() {
@@ -335,121 +557,27 @@ list_pkgs() {
 }
 
 list_repos() {
-    ls "$REPOS_DIR" 2>/dev/null || echo "No repos exist"
+    cat "$USER_REPOS_DIR"/* || echo "No repos exist"
 }
 
-CMD="${1:-}"
-case "$CMD" in
-i | install)
-    shift
-    [[ $# -eq 0 ]] && {
-        echo "Usage: pkgit i <pkg[:ver]> ..."
-        exit 1
-    }
-    for p in "$@"; do install_pkg "$p"; done
-    ;;
-r | remove)
-    shift
-    remove_pkg "${1:-}"
-    ;;
-rr | remove-repo)
-    shift
-    remove_repo "${1:-}"
-    ;;
-s | search)
-    search_pkgs "$@"
-    ;;
-lp | list-pkgs)
-    list_pkgs
-    ;;
-lr | list-repos)
-    list_repos
-    ;;
-ar | add-repo)
-    shift
-    if [ "$1" == -i ]; then
-        [[ -z "${2:-}" ]] && {
-            echo "Usage: pkgit ar <git-url>"
-            exit 1
-        }
-        create_repo_from_git "${2:-}" "${3:-}"
-        store_link "${2:-}"
-
-        pkg=$(basename "${2:-}" .git | tr '[:upper:]' '[:lower:]')
-        install_pkg "$pkg"
-    else
-        [[ -z "${1:-}" ]] && {
-            echo "Usage: pkgit ar <git-url>"
-            exit 1
-        }
-        create_repo_from_git "$@"
-        store_link "$1"
-    fi
-    ;;
-apr | add-pkgit-repo)
-    shift
-    [[ -z "${1:-}" ]] && {
-        echo "Usage: pkgit apr <raw-file-url>"
-        exit 1
-    }
-    if "$1" == "http"*; then
-        file=$(curl "$1")
-    else
-        file=$(cat "$1")
-    fi
-    for url in $file; do
-        create_repo_from_git "$url"
-        store_link "$url"
-    done
-    ;;
-sy | sync)
-    echo -e "$(color "$magenta" "[pkgit]") Syncing repositories..."
-    rm -rf "$REPOS_DIR/*/"
-    if [ -z "${2:-}" ]; then
-        files=("$USER_REPOS_DIR"/*)
-        echo ${files[@]}
-        for file in ${files[@]}; do
-            while IFS= read -r repo; do
-                echo ""
-                echo -e "$(echo_pkgit) $(color "$blue" "[REPO]") Syncing: $(color "$green" "$repo")"
-                create_repo_from_git "$repo"
-                echo -e "$(echo_pkgit) $(echo_success) Sync completed for: $(color "$green" "$repo")"
-            done <"$file"
-        done
-    else
-        while IFS= read -r repo; do
-            echo ""
-            echo -e "$(echo_pkgit) $(color "$blue" "Syncing:") $(color "$green" "$repo")"
-            create_repo_from_git "$repo"
-            echo -e "$(echo_pkgit) $(color "$blue" "Sync completed for:") $(color "$green" "$repo")"
-        done <"$USER_REPOS_DIR/${2:-*}"
-    fi
+search_pkgs() {
+    local search_terms="${@:2}"
     echo ""
-    echo -e "$(echo_pkgit) $(echo_success) Sync completed."
-    ;;
-up | update)
-    echo -e "$(echo_pkgit) $(color "$magenta" "[STATUS]") Updating installed packages..."
-    for pkg in "$PKGS_DIR"/*; do
-        qpkg=$(basename "$pkg")
-        echo -e "$(echo_pkgit) $(color "$blue" "[PACKAGE]") Updating: $qpkg"
-        install_pkg "$qpkg"
-        echo -e "$(echo_pkgit) $(color "$blue" "[PACKAGE]") Update completed for: $qpkg"
+    for term in $search_terms; do
+        echo "results for: $term"
+        grep -F "$term" "$USER_REPOS_DIR"/*
+        echo ""
     done
-    echo ""
-    echo -e "$(echo_pkgit) $(echo_success) All installed packages have been updated."
-    ;;
-ug | upgrade)
-    curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
-    ;;
-h | *)
+}
 
+pkgit_help() {
     echo -e """$(color "$bold_magenta" "pkgit") - package it!
 $(color "$magenta" "v$VERSION")
 
 $(color "$red" "options:")
 $(shortopt "h")                   $(or)   $(longopt "help")                         $(desc "# display this help message")
 $(shortopt "ar" "[url.git]")        $(or)   $(longopt "add-repo" "[url.git]")           $(desc "# add a package to your repo")
-$(shortopt "ar -i" "[url.git]")     $(or)   $(longopt "add-repo -i" "[url.git]")        $(desc "# add and install a package")
+$(shortopt "ir" "[url.git]")        $(or)   $(longopt "install-repo " "[url.git]")      $(desc "# add and install a package")
 $(shortopt "apr" "[url || file]")   $(or)   $(longopt "add-pkgit-repo" "[url || file]") $(desc "# add a list of repos")
 $(shortopt "i" "[pkgs]")            $(or)   $(longopt "install" "[pkgs]")               $(desc "# install a package")
 $(shortopt "r" "[pkgs]")            $(or)   $(longopt "remove" "[pkgs]")                $(desc "# remove an installed package")
@@ -460,6 +588,76 @@ $(shortopt "s" "[pkgs]")            $(or)   $(longopt "search" "[pkgs]")        
 $(shortopt "sy")                  $(or)   $(longopt "sync")                         $(desc "# update the repos")
 $(shortopt "up")                  $(or)   $(longopt "update")                       $(desc "# update all installed packages")
 $(shortopt "ug")                  $(or)   $(longopt "upgrade")                      $(desc "# update pkgit")
-"""
+    """
+}
+
+# --- logic --- #
+
+autogen
+
+case ${1:-} in
+ar | add-repo)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    repo_from_git $2
+    ;;
+arp | add-repo-pkg)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    add_repo_pkg $2
+    ;;
+ir | install-repo)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    repo_from_git ${@:2}
+    install_pkg $(grep "$2" "$USER_REPOS_DIR"/* | awk '{print $1}')
+    ;;
+i | install)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    install_pkg $2
+    ;;
+r | remove)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    remove_pkg $2
+    ;;
+rr | remove-repo)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    remove_repo $2
+    ;;
+lp | list-pkgs)
+    list_pkgs
+    ;;
+lr | list-repos)
+    list_repos
+    ;;
+s | search)
+    search_pkgs $@
+    ;;
+sy | sync)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    sync $@
+    ;;
+up | update)
+    if ((EUID != 0)); then
+        exec "$su" "$0" "$@"
+    fi
+    update
+    ;;
+ug | upgrade)
+    curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bash
+    ;;
+h | help | *)
+    pkgit_help
     ;;
 esac
