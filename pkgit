@@ -593,7 +593,7 @@ $(shortopt "ug")                  $(or)   $(longopt "upgrade")                  
 
 # --- logic --- #
 
-autogen
+autogen $@
 
 case ${1:-} in
 ar | add-repo)
