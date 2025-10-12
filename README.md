@@ -19,12 +19,17 @@ curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bas
 
 ## options
 
-| command         | long command            | description                       |
-|-----------------|-------------------------|-----------------------------------|
-| ar [url.git]    | add-repo [url.git]      | add a package to the local repo   |
-| i [pkgs]        | install [pkgs]          | installs a package from the repo  |
-| r [pkgs]        | remove [pkgs]           | removes an installed package      |
-| ls              | list                    | list installed packages           |
-| s [pkgs]        | search [pkgs]           | search for packages               |
-| sy              | sync                    | updates the repo                  |
-| up              | update-packages         | updates all installed packages    |
+| command           | long command              | description                       |
+|-------------------|---------------------------|-----------------------------------|
+| ar [url.git]      | add-repo [url.git]        | add a package to the local repo   |
+| arp [url.git]     | add-repo-pkg [url.git]    | add a list of repos               |
+| ir [url.git]      | install-repo [url.git]    | add and install a package         |
+| i [pkgs]          | install [pkgs]            | installs a package from the repo  |
+| r [pkgs]          | remove [pkgs]             | removes an installed package      |
+| rr [pkgs]         | remove-repo [pkgs]        | removes a package repo            |
+| lp                | list-pkgs                 | list installed packages           |
+| lr                | list-repos                | list installed packages           |
+| s [pkgs]          | search [pkgs]             | search for packages               |
+| sy                | sync                      | updates the repo                  |
+| up                | update                    | updates all installed packages    |
+| ug                | upgrade                   | updates pkgit                     |
