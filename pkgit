@@ -143,7 +143,7 @@ repo_from_git() {
         echo "$pkg $url" | tee -a "$USER_REPOS_DIR/repos" >/dev/null
     fi
 
-    echo "$latest_tag" >/dev/null
+    echo "$latest_tag"
 }
 
 add_repo_pkg() {
@@ -202,12 +202,21 @@ build_sh() {
     rm -rf "$SRC_DIR"
 
     if [[ "$tag" == "HEAD" ]]; then
-        git -c advice.detachedHead=false clone --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
+        if ! git -c advice.detachedHead=false clone --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"; then
+            echo "Clone failed: $PKGIT_GIT_URL"
+            exit 1
+        fi
     else
-        git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
+        if ! git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"; then
+            echo "Clone failed: $PKGIT_GIT_URL"
+            exit 1
+        fi
     fi
 
-    cd "$SRC_DIR"
+    cd "$SRC_DIR" || {
+        echo "Failed to cd to $SRC_DIR"
+        exit 1
+    }
     echo "$SRC_DIR"
 
     prompt_source_script() {
@@ -268,20 +277,30 @@ build_sh() {
     copy_executables() {
         echo "Copying executable files recursively to $INSTALL_DIR"
         mkdir -p "$INSTALL_DIR"
-        find . -type f -executable -exec cp --parents {} "$INSTALL_DIR" \;
+        find . -type f -executable -exec bash -c '
+        filetype=$(file -b "{}")
+        if [[ "$filetype" == *"executable"* || "$filetype" == *"shared object"* ]]; then
+            cp --parents "{}" "$INSTALL_DIR"
+        fi
+        ' \;
+        find . -type f \( -executable -o -name "*.so*" \) -exec cp --parents -p {} "$INSTALL_DIR" \;
     }
 
     build() {
-        if [ -f "bldit" ]; then
-            source bldit
-            bldit
-            copy_executables
-
-        elif [ -f "autogen.sh" ]; then
+        if [ -f "autogen.sh" ]; then
             echo "Detected autogen.sh build system"
-            ./autogen.sh --prefix="$INSTALL_DIR"
-            make -j$(($(nproc) / 2))
-            make install
+            if ! ./autogen.sh --prefix="$INSTALL_DIR"; then
+                echo "autogen.sh failed" >&2
+                exit 1
+            fi
+            if ! make -j$(($(nproc) / 2)); then
+                echo "make failed" >&2
+                exit 1
+            fi
+            if ! make install; then
+                echo "make install failed" >&2
+                exit 1
+            fi
 
         elif [ -f "cabal.project" ] || [ -f *".cabal" ]; then
             echo "Detected Cabal build system"
@@ -298,18 +317,29 @@ build_sh() {
 
         elif [ -f "CMakeLists.txt" ]; then
             echo "Detected CMake build system"
-            mkdir -p build
-            cd build
-            cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ..
-            make
-            make install
+            mkdir -p build && cd build
+            if ! cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ..; then
+                echo "cmake configuration failed" >&2
+                exit 1
+            fi
+            if ! make -j$(($(nproc) / 2)); then
+                echo "make failed" >&2
+                exit 1
+            fi
+            if ! make install; then
+                echo "make install failed" >&2
+                exit 1
+            fi
             cd ..
 
         elif [ -f "Cargo.toml" ]; then
-            echo "Detected Cargo (Rust) build system"
-            cargo build --release
+            echo "Detected Cargo build system"
+            if ! cargo build --release; then
+                echo "cargo build failed" >&2
+                exit 1
+            fi
             mkdir -p "$INSTALL_DIR/bin"
-            cp -r target/release/* "$INSTALL_DIR/bin/"
+            cp -r target/release/* "$INSTALL_DIR"
 
         elif [ -f "build.zig" ]; then
             echo "Detected Zig build system"
@@ -381,6 +411,26 @@ build_sh() {
             sbt publishLocal
             copy_executables
 
+        elif [ -f "pnpm-lock.yaml" ]; then
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            export PATH="/root/.local/share/pnpm:$PATH"
+            echo "Detected pnpm build system"
+            pnpm install
+            if ! pnpm run build; then
+                echo "pnpm build failed" >&2
+                exit 1
+            fi
+            mkdir -p "$INSTALL_DIR"
+            cp -r dist/* "$INSTALL_DIR"
+            copy_executables
+            # Link binary if specified
+            if [ -f package.json ]; then
+                bin_entry=$(jq -r '.bin | .[0]' package.json 2>/dev/null || echo "")
+                if [[ -n "$bin_entry" ]]; then
+                    ln -sf "$INSTALL_DIR/$bin_entry" "$BIN_DIR/$(basename "$bin_entry")"
+                fi
+            fi
+
         elif [ -f "esbuild.config.js" ] || [ -f "esbuild.config.ts" ]; then
             echo "Detected ESbuild build system"
             esbuild --outdir="$INSTALL_DIR"
@@ -411,9 +461,49 @@ build_sh() {
     }
 
     install_dependencies
-    build
+    echo "Checking for bldit in: $(pwd)"
+    if [ -f "./bldit" ]; then
+        source ./bldit || {
+            echo "Failed to source bldit"
+            exit 1
+        }
+        bldit || {
+            echo "bldit build failed"
+            exit 1
+        }
+        copy_executables
+    else
+        build
+    fi
     install_bins
     echo "Build and install completed successfully."
+}
+
+choose_package() {
+    local pkg_name="$1"
+    mapfile -t matches < <(grep -w "^$pkg_name " "$USER_REPOS_DIR/repos")
+
+    local count=${#matches[@]}
+    if ((count == 0)); then
+        echo "No package found matching: $pkg_name"
+        return 1
+    elif ((count == 1)); then
+        # Only one package, use it directly
+        echo "${matches[0]}"
+        return 0
+    fi
+
+    echo "Multiple packages found for '$pkg_name':"
+    PS3="Enter the number of the package to install (1-$count): "
+
+    select choice in "${matches[@]}" "Quit"; do
+        if [[ "$choice" == "Quit" ]] || [[ -z "$choice" ]]; then
+            echo "Aborted."
+            return 1
+        fi
+        echo "$choice"
+        return 0
+    done
 }
 
 install_pkg() {
@@ -428,6 +518,7 @@ install_pkg() {
         url=$(grep "$pkg" "$USER_REPOS_DIR/repos" | awk '{print $2}')
         ver=$(repo_from_git $(grep "$url" "$USER_REPOS_DIR/repos" | awk '{print $2}'))
     fi
+    echo "version: $ver"
 
     rm -rf "${BUILD_DIR}/${pkg}-"*
 
@@ -613,7 +704,7 @@ ir | install-repo)
         exec "$su" "$0" "$@"
     fi
     repo_from_git ${@:2}
-    install_pkg $(grep "$2" "$USER_REPOS_DIR"/* | awk '{print $1}')
+    install_pkg $(grep "$2" "$USER_REPOS_DIR/repos" | awk '{print $1}')
     ;;
 i | install)
     if ((EUID != 0)); then
