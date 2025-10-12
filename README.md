@@ -28,7 +28,7 @@ curl https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/bldit | bas
 | r [pkgs]          | remove [pkgs]             | removes an installed package      |
 | rr [pkgs]         | remove-repo [pkgs]        | removes a package repo            |
 | lp                | list-pkgs                 | list installed packages           |
-| lr                | list-repos                | list installed packages           |
+| lr                | list-repos                | list added repos                  |
 | s [pkgs]          | search [pkgs]             | search for packages               |
 | sy                | sync                      | updates the repo                  |
 | up                | update                    | updates all installed packages    |
