@@ -143,7 +143,7 @@ repo_from_git() {
         echo "$pkg $url" | tee -a "$USER_REPOS_DIR/repos" >/dev/null
     fi
 
-    echo "$latest_tag"
+    echo "$latest_tag" >/dev/null
 }
 
 add_repo_pkg() {
@@ -421,12 +421,12 @@ install_pkg() {
     local pkg ver
     if [[ "$input" == *:* ]]; then
         pkg="${input%%:*}"
-        url=$(grep "$pkg" "$USER_REPOS_DIR"/* | awk '{print $2}')
+        url=$(grep "$pkg" "$USER_REPOS_DIR/repos" | awk '{print $2}')
         ver="${input##*:}"
     else
         pkg="$input"
-        url=$(grep "$pkg" "$USER_REPOS_DIR"/* | awk '{print $2}')
-        ver=$(repo_from_git $(grep "$url" "$USER_REPOS_DIR"/* | awk '{print $2}'))
+        url=$(grep "$pkg" "$USER_REPOS_DIR/repos" | awk '{print $2}')
+        ver=$(repo_from_git $(grep "$url" "$USER_REPOS_DIR/repos" | awk '{print $2}'))
     fi
 
     rm -rf "${BUILD_DIR}/${pkg}-"*
@@ -557,7 +557,7 @@ list_pkgs() {
 }
 
 list_repos() {
-    cat "$USER_REPOS_DIR"/* || echo "No repos exist"
+    cat "$USER_REPOS_DIR/repos" || echo "No repos exist"
 }
 
 search_pkgs() {
@@ -565,7 +565,7 @@ search_pkgs() {
     echo ""
     for term in $search_terms; do
         echo "results for: $term"
-        grep -F "$term" "$USER_REPOS_DIR"/*
+        grep -F "$term" "$USER_REPOS_DIR/repos"
         echo ""
     done
 }
@@ -593,7 +593,7 @@ $(shortopt "ug")                  $(or)   $(longopt "upgrade")                  
 
 # --- logic --- #
 
-autogen $@
+autogen "$@"
 
 case ${1:-} in
 ar | add-repo)
