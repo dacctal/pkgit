@@ -476,6 +476,16 @@ build_sh() {
             exit 1
         }
         copy_executables
+    elif [ -f "$BLDIT_DIR/$pkg" ]; then
+        source "$BLDIT_DIR/$pkg" || {
+            echo "Failed to source bldit"
+            exit 1
+        }
+        bldit || {
+            echo "bldit build failed"
+            exit 1
+        }
+        copy_executables
     else
         build
     fi
