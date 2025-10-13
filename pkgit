@@ -195,71 +195,50 @@ build_sh() {
     BUILD_DIR="$4"
     BIN_DIR="$5"
     PKGS_DIR="$6"
-
     INSTALL_DIR="$PKGS_DIR/$pkg/$tag"
-
     SRC_DIR="$BUILD_DIR/$pkg-$tag"
+    : "${BLDIT_DIR:=/etc/pkgit/bldit}"
+
     rm -rf "$SRC_DIR"
 
     if [[ "$tag" == "HEAD" ]]; then
-        if ! git -c advice.detachedHead=false clone --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"; then
-            echo "Clone failed: $PKGIT_GIT_URL"
-            exit 1
-        fi
+        git -c advice.detachedHead=false clone --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
     else
-        if ! git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"; then
-            echo "Clone failed: $PKGIT_GIT_URL"
-            exit 1
-        fi
+        git -c advice.detachedHead=false clone --branch "$tag" --depth 1 "$PKGIT_GIT_URL" "$SRC_DIR"
     fi
 
     cd "$SRC_DIR" || {
-        echo "Failed to cd to $SRC_DIR"
+        echo "Failed to cd to $SRC_DIR" >&2
         exit 1
     }
-    echo "$SRC_DIR"
 
-    prompt_source_script() {
+    trust_and_source() {
         local script="$1"
-        echo -e "$(echo_pkgit) $(color "$yellow" "[YIELD]") Dependency script content:"
-        echo ""
-        echo "# --- START --- #"
-        echo ""
-        cat "$script"
-        echo ""
-        echo "# --- END --- #"
-        echo ""
-        read -rp "$(echo_pkgit) Do you trust this dependency script? (y/N) " answer
-        if [[ "$answer" == [Yy]* ]]; then
+        if [[ "${PKGIT_TRUST-all}" == "yes" ]]; then
             source "$script"
-        else
-            echo -e "$(echo_pkgit) Skipping $script"
-            DEPS=()
+            return 0
         fi
+        echo "Script content for review: $script"
+        cat "$script"
+        read -rp "Do you trust this script? (y/N): " answer
+        [[ "$answer" =~ [Yy] ]] && source "$script"
     }
 
-    if [ -f "/etc/pkgit/deps/$pkg.sh" ]; then
-        echo -e "$(echo_pkgit) grabbing user-defined dependencies..."
-        prompt_source_script "/etc/pkgit/deps/$pkg.sh"
-    elif [ -f "deps.sh" ]; then
-        echo -e "$(echo_pkgit) grabbing repo-defined dependencies..."
-        chmod +x deps.sh
-        prompt_source_script "deps.sh"
-    else
+    load_dependencies() {
         DEPS=()
-    fi
-
+        if [[ -f "/etc/pkgit/deps/$pkg.sh" ]]; then
+            trust_and_source "/etc/pkgit/deps/$pkg.sh" || DEPS=()
+        elif [[ -f "deps.sh" ]]; then
+            chmod +x deps.sh
+            trust_and_source "deps.sh" || DEPS=()
+        fi
+    }
     install_dependencies() {
-        echo -e "$(echo_pkgit) Dependencies: ${DEPS[@]}"
         for dep in "${DEPS[@]:-}"; do
             [[ -z "$dep" ]] && continue
-
             url=$(awk '{print $1}' <<<"$dep")
             ver=$(awk '{print $2}' <<<"$dep")
-
             depname=$(basename "$url" .git | tr '[:upper:]' '[:lower:]')
-            echo "[pkgit] Installing dependency: $depname (url: $url version: ${ver:-none})"
-
             if [[ -n "$ver" ]]; then
                 $PKGIT_SCRIPT ar "$url" "$ver"
                 $PKGIT_SCRIPT i "$depname:$ver"
@@ -270,213 +249,173 @@ build_sh() {
         done
     }
 
-    install_bins() {
-        find "$PKGS_DIR/$pkg/$tag" -type f -executable -exec ln -sf {} "$BIN_DIR" \;
-    }
-
-    copy_executables() {
-        echo "Copying executable files recursively to $INSTALL_DIR"
+    # Extended copy: executables, libs, sources, headers, archives
+    copy_all_files() {
         mkdir -p "$INSTALL_DIR"
-        find . -type f -executable -exec bash -c '
-        filetype=$(file -b "{}")
-        if [[ "$filetype" == *"executable"* || "$filetype" == *"shared object"* ]]; then
-            cp --parents "{}" "$INSTALL_DIR"
-        fi
-        ' \;
-        find . -type f \( -executable -o -name "*.so*" \) -exec cp --parents -p {} "$INSTALL_DIR" \;
+        find . -type f \( -executable -o -name "*.so*" -o -name "*.a" -o -name "*.h" -o -name "*.hpp" -o -name "*.c" -o -name "*.cpp" \) \
+            -exec cp --parents -p {} "$INSTALL_DIR" \;
     }
 
-    build() {
-        if [ -f "autogen.sh" ]; then
-            echo "Detected autogen.sh build system"
-            if ! ./autogen.sh --prefix="$INSTALL_DIR"; then
-                echo "$(echo_pkgit) $(color "$red" "[ERROR]") autogen.sh failed" >&2
-                exit 1
-            fi
-            if ! make -j$(($(nproc) / 2)); then
-                echo "$(echo_pkgit) $(color "$red" "[ERROR]") make failed. is it installed?" >&2
-                exit 1
-            fi
-            if ! make install; then
-                echo "$(echo_pkgit) $(color "$red" "[ERROR]") make install failed" >&2
-                exit 1
-            fi
+    # Symlink bins, libs, includes to system dirs
+    symlink_install() {
+        # Executables
+        find "$INSTALL_DIR" -type f -executable -exec ln -sf {} "$BIN_DIR" \;
 
-        elif [ -f "cabal.project" ] || [ -f *".cabal" ]; then
-            echo "Detected Cabal build system"
-            if ! cabal; then
-                echo "$(echo_pkgit) $(color "$red" "[ERROR]") cabal failed. is it installed?" >&2
-                exit 1
-            fi
-            cabal update
-            cabal install --only-dependencies
-            cabal configure --prefix="$INSTALL_DIR" -fembed_data_files
-            cabal build
-            cabal haddock --html-location=URL --hyperlink-source
+        # Libraries
+        mkdir -p /usr/local/lib
+        find "$INSTALL_DIR" -type f \( -name "*.so*" -o -name "*.a" \) -exec ln -sf {} /usr/local/lib/ \;
 
-        elif [ -f "Makefile" ]; then
-            echo "Detected Make build system"
-            make -j$(($(nproc) / 2))
-            make install PREFIX="$INSTALL_DIR"
+        # Include files
+        mkdir -p /usr/local/include
+        find "$INSTALL_DIR" -type f \( -name "*.h" -o -name "*.hpp" \) -exec ln -sf {} /usr/local/include/ \;
 
-        elif [ -f "CMakeLists.txt" ]; then
-            echo "Detected CMake build system"
-            mkdir -p build && cd build
-            if ! cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ..; then
-                echo "cmake configuration failed" >&2
-                exit 1
-            fi
-            if ! make -j$(($(nproc) / 2)); then
-                echo "make failed" >&2
-                exit 1
-            fi
-            if ! make install; then
-                echo "make install failed" >&2
-                exit 1
-            fi
-            cd ..
-
-        elif [ -f "Cargo.toml" ]; then
-            echo "Detected Cargo build system"
-            if ! cargo build --release; then
-                echo "cargo build failed" >&2
-                exit 1
-            fi
-            mkdir -p "$INSTALL_DIR/bin"
-            cp -r target/release/* "$INSTALL_DIR"
-
-        elif [ -f "build.zig" ]; then
-            echo "Detected Zig build system"
-            zig build -Dprefix="$INSTALL_DIR"
-            zig build install
-
-        elif [ -f "meson.build" ]; then
-            echo "Detected Meson build system"
-            meson setup build --prefix="$INSTALL_DIR"
-            meson compile -C build
-            meson install -C build
-
-        elif [ -f "build.ninja" ]; then
-            echo "Detected Ninja build system"
-            ninja
-            ninja install
-
-        elif [ -f "SConstruct" ]; then
-            echo "Detected SCons build system"
-            scons prefix="$INSTALL_DIR"
-            scons install prefix="$INSTALL_DIR"
-
-        elif [ -f "configure.ac" ] || [ -f "configure" ]; then
-            echo "Detected Autotools build system"
-            ./configure --prefix="$INSTALL_DIR"
-            make
-            make install
-
-        elif [ -f "build.gradle" ]; then
-            if grep -q "kotlin" build.gradle; then
-                echo "Detected Gradle Kotlin DSL build system"
-            else
-                echo "Detected Gradle build system"
-            fi
-            gradle build
-            mkdir -p "$INSTALL_DIR/libs"
-            cp build/libs/* "$INSTALL_DIR/libs/"
-
-        elif [ -f "BUILD" ] || [ -f "WORKSPACE" ]; then
-            echo "Detected Bazel build system"
-            bazel build //:all
-            copy_executables
-
-        elif [ -f "BUCK" ]; then
-            echo "Detected Buck build system"
-            buck build //...
-            copy_executables
-
-        elif [ -f "pants.toml" ] || [ -f "pants.ini" ] || [ -f "pants.yaml" ]; then
-            echo "Detected Pants build system"
-            pants build ::
-            copy_executables
-
-        elif [ -f "flake.nix" ]; then
-            echo "Detected Nix flake build system"
-            nix build
-            mkdir -p "$INSTALL_DIR"
-            cp -r ./result/* "$INSTALL_DIR/"
-
-        elif [ -f "default.nix" ]; then
-            echo "Detected Nix build system"
-            nix-build
-            mkdir -p "$INSTALL_DIR"
-            cp -r ./result/* "$INSTALL_DIR/"
-
-        elif [ -f "build.sbt" ]; then
-            echo "Detected SBT (Scala) build system"
-            sbt compile
-            sbt publishLocal
-            copy_executables
-
-        elif [ -f "pnpm-lock.yaml" ]; then
-            curl -fsSL https://get.pnpm.io/install.sh | sh -
-            export PATH="/root/.local/share/pnpm:$PATH"
-            echo "Detected pnpm build system"
-            pnpm install
-            if ! pnpm run build; then
-                echo "pnpm build failed" >&2
-                exit 1
-            fi
-            mkdir -p "$INSTALL_DIR"
-            cp -r dist/* "$INSTALL_DIR"
-            copy_executables
-            # Link binary if specified
-            if [ -f package.json ]; then
-                bin_entry=$(jq -r '.bin | .[0]' package.json 2>/dev/null || echo "")
-                if [[ -n "$bin_entry" ]]; then
-                    ln -sf "$INSTALL_DIR/$bin_entry" "$BIN_DIR/$(basename "$bin_entry")"
-                fi
-            fi
-
-        elif [ -f "esbuild.config.js" ] || [ -f "esbuild.config.ts" ]; then
-            echo "Detected ESbuild build system"
-            esbuild --outdir="$INSTALL_DIR"
-
-        elif [ -f "webpack.config.js" ]; then
-            echo "Detected Webpack build system"
-            webpack --output-path "$INSTALL_DIR"
-
-        elif [ -f "conanfile.txt" ] || [ -f "conanfile.py" ]; then
-            echo "Detected Conan build system"
-            conan install . --install-folder build --build=missing
-            conan build . --build-folder build
-            copy_executables
-
-        elif [ -f "Earthfile" ]; then
-            echo "Detected Earthly build system"
-            earthly --build-arg INSTALL_DIR="$INSTALL_DIR" +default
-
-        elif [ -f "dagger.hcl" ] || [ -f "dagger.yaml" ]; then
-            echo "Detected Dagger build system"
-            dagger do build
-            copy_executables
-
-        else
-            echo "[pkgit] No recognized build system in $SRC_DIR"
-            exit 1
-        fi
+        # Refresh linker cache for shared libs, ignore if permission denied
+        command -v ldconfig >/dev/null && sudo ldconfig || true
     }
 
+    make_build() {
+        make -j"$(nproc)"
+        make install PREFIX="$INSTALL_DIR"
+    }
+    cmake_build() {
+        mkdir -p build && cd build
+        cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" ..
+        make -j"$(nproc)"
+        make install
+        cd ..
+    }
+    cargo_build() {
+        cargo build --release
+        mkdir -p "$INSTALL_DIR/bin"
+        cp -r target/release/* "$INSTALL_DIR"
+    }
+    zig_build() {
+        zig build -Dprefix="$INSTALL_DIR"
+        zig build install
+    }
+    meson_build() {
+        meson setup build --prefix="$INSTALL_DIR"
+        meson compile -C build
+        meson install -C build
+    }
+    ninja_build() {
+        ninja
+        ninja install
+    }
+    scons_build() {
+        scons prefix="$INSTALL_DIR"
+        scons install prefix="$INSTALL_DIR"
+    }
+    autogen_build() {
+        ./autogen.sh --prefix="$INSTALL_DIR"
+        make -j"$(nproc)"
+        make install
+    }
+    autotools_build() {
+        ./configure --prefix="$INSTALL_DIR"
+        make
+        make install
+    }
+    gradle_build() {
+        gradle build
+        mkdir -p "$INSTALL_DIR/libs"
+        cp build/libs/* "$INSTALL_DIR/libs/"
+    }
+    cabal_build() {
+        cabal update
+        cabal install --only-dependencies
+        cabal configure --prefix="$INSTALL_DIR" -fembed_data_files
+        cabal build
+    }
+    bazel_build() { bazel build //:all; }
+    buck_build() { buck build //...; }
+    pants_build() { pants build ::; }
+    nix_flake_build() {
+        nix build
+        mkdir -p "$INSTALL_DIR"
+        cp -r ./result/* "$INSTALL_DIR/"
+    }
+    nix_build() {
+        nix-build
+        mkdir -p "$INSTALL_DIR"
+        cp -r ./result/* "$INSTALL_DIR/"
+    }
+    sbt_build() {
+        sbt compile
+        sbt publishLocal
+    }
+    pnpm_build() {
+        curl -fsSL https://get.pnpm.io/install.sh | sh -
+        export PATH="$HOME/.local/share/pnpm:$PATH"
+        pnpm install
+        pnpm run build || exit 1
+        mkdir -p "$INSTALL_DIR"
+        cp -r dist/* "$INSTALL_DIR"
+    }
+    esbuild_build() { esbuild --outdir="$INSTALL_DIR"; }
+    webpack_build() { webpack --output-path "$INSTALL_DIR"; }
+    conan_build() {
+        conan install . --install-folder build --build=missing
+        conan build . --build-folder build
+    }
+    earthly_build() { earthly --build-arg INSTALL_DIR="$INSTALL_DIR" +default; }
+    dagger_build() { dagger do build; }
+
+    declare -A BUILD_SYSTEM_MAP=(
+        ["autogen.sh"]=autogen_build
+        ["Makefile"]=make_build
+        ["CMakeLists.txt"]=cmake_build
+        ["Cargo.toml"]=cargo_build
+        ["build.zig"]=zig_build
+        ["meson.build"]=meson_build
+        ["build.ninja"]=ninja_build
+        ["SConstruct"]=scons_build
+        ["configure.ac"]=autotools_build
+        ["configure"]=autotools_build
+        ["build.gradle"]=gradle_build
+        ["cabal.project"]=cabal_build
+        ["BUILD"]=bazel_build
+        ["WORKSPACE"]=bazel_build
+        ["BUCK"]=buck_build
+        ["pants.toml"]=pants_build
+        ["pants.ini"]=pants_build
+        ["pants.yaml"]=pants_build
+        ["flake.nix"]=nix_flake_build
+        ["default.nix"]=nix_build
+        ["build.sbt"]=sbt_build
+        ["pnpm-lock.yaml"]=pnpm_build
+        ["esbuild.config.js"]=esbuild_build
+        ["esbuild.config.ts"]=esbuild_build
+        ["webpack.config.js"]=webpack_build
+        ["conanfile.txt"]=conan_build
+        ["conanfile.py"]=conan_build
+        ["Earthfile"]=earthly_build
+        ["dagger.hcl"]=dagger_build
+        ["dagger.yaml"]=dagger_build
+    )
+
+    detect_and_dispatch() {
+        for file in "${!BUILD_SYSTEM_MAP[@]}"; do
+            if [[ -f "$file" ]]; then
+                echo "Detected build system: $file"
+                ${BUILD_SYSTEM_MAP[$file]}
+                return 0
+            fi
+        done
+        echo "[pkgit] No recognized build system in $SRC_DIR" >&2
+        exit 1
+    }
+
+    load_dependencies
     install_dependencies
-    echo "Checking for bldit in: $(pwd)"
-    if [ -f "./bldit" ]; then
-        source ./bldit || {
+
+    if [[ -f "./bldit" ]]; then
+        trust_and_source "./bldit" || {
             echo "Failed to source bldit"
             exit 1
         }
-        bldit || {
-            echo "bldit build failed"
-            exit 1
-        }
-        copy_executables
-    elif [ -f "$BLDIT_DIR/$pkg" ]; then
+        copy_all_files
+    elif [[ -f "$BLDIT_DIR/$pkg" ]]; then
         source "$BLDIT_DIR/$pkg" || {
             echo "Failed to source bldit"
             exit 1
@@ -485,11 +424,14 @@ build_sh() {
             echo "bldit build failed"
             exit 1
         }
-        copy_executables
+        copy_all_files
     else
-        build
+        detect_and_dispatch
+        copy_all_files
     fi
-    install_bins
+
+    symlink_install
+
     echo "Build and install completed successfully."
 }
 
@@ -650,22 +592,22 @@ search_pkgs() {
 
 pkgit_help() {
     echo -e """$(color "$bold_magenta" "pkgit") - package it!
-$(color "$magenta" "v$VERSION")
+    $(color "$magenta" "v$VERSION")
 
-$(color "$red" "options:")
-$(shortopt "h")                   $(or)   $(longopt "help")                         $(desc "# display this help message")
-$(shortopt "ar" "[url.git]")        $(or)   $(longopt "add-repo" "[url.git]")           $(desc "# add a package to your repo")
-$(shortopt "ir" "[url.git]")        $(or)   $(longopt "install-repo " "[url.git]")      $(desc "# add and install a package")
-$(shortopt "arp" "[url || file]")   $(or)   $(longopt "add-repo-pkg" "[url || file]")   $(desc "# add a list of repos")
-$(shortopt "i" "[pkgs]")            $(or)   $(longopt "install" "[pkgs]")               $(desc "# install a package")
-$(shortopt "r" "[pkgs]")            $(or)   $(longopt "remove" "[pkgs]")                $(desc "# remove an installed package")
-$(shortopt "rr" "[repos]")          $(or)   $(longopt "remove-repo" "[repos]")          $(desc "# remove a package repo")
-$(shortopt "lp")                  $(or)   $(longopt "list-pkgs")                    $(desc "# list installed packages")
-$(shortopt "lr")                  $(or)   $(longopt "list-repos")                   $(desc "# list local repos")
-$(shortopt "s" "[pkgs]")            $(or)   $(longopt "search" "[pkgs]")                $(desc "# search for packages")
-$(shortopt "sy")                  $(or)   $(longopt "sync")                         $(desc "# update the repos")
-$(shortopt "up")                  $(or)   $(longopt "update")                       $(desc "# update all installed packages")
-$(shortopt "ug")                  $(or)   $(longopt "upgrade")                      $(desc "# update pkgit")
+    $(color "$red" "options:")
+    $(shortopt "h")                   $(or)   $(longopt "help")                         $(desc "# display this help message")
+    $(shortopt "ar" "[url.git]")        $(or)   $(longopt "add-repo" "[url.git]")           $(desc "# add a package to your repo")
+    $(shortopt "ir" "[url.git]")        $(or)   $(longopt "install-repo " "[url.git]")      $(desc "# add and install a package")
+    $(shortopt "arp" "[url || file]")   $(or)   $(longopt "add-repo-pkg" "[url || file]")   $(desc "# add a list of repos")
+    $(shortopt "i" "[pkgs]")            $(or)   $(longopt "install" "[pkgs]")               $(desc "# install a package")
+    $(shortopt "r" "[pkgs]")            $(or)   $(longopt "remove" "[pkgs]")                $(desc "# remove an installed package")
+    $(shortopt "rr" "[repos]")          $(or)   $(longopt "remove-repo" "[repos]")          $(desc "# remove a package repo")
+    $(shortopt "lp")                  $(or)   $(longopt "list-pkgs")                    $(desc "# list installed packages")
+    $(shortopt "lr")                  $(or)   $(longopt "list-repos")                   $(desc "# list local repos")
+    $(shortopt "s" "[pkgs]")            $(or)   $(longopt "search" "[pkgs]")                $(desc "# search for packages")
+    $(shortopt "sy")                  $(or)   $(longopt "sync")                         $(desc "# update the repos")
+    $(shortopt "up")                  $(or)   $(longopt "update")                       $(desc "# update all installed packages")
+    $(shortopt "ug")                  $(or)   $(longopt "upgrade")                      $(desc "# update pkgit")
     """
 }
 
