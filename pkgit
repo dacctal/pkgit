@@ -491,9 +491,9 @@ install_pkg() {
         ver=$(repo_from_git "$url")
     fi
 
-    echo "version: $ver"
-    echo "url: $url"
-    echo "pkg: $pkg"
+    #    echo "version: $ver"
+    #    echo "url: $url"
+    #    echo "pkg: $pkg"
 
     rm -rf "${BUILD_DIR:?}/${pkg}-"*
 
@@ -526,14 +526,14 @@ install_pkg() {
             "$PKGS_DIR"
         )
 
-        echo """
-    url: $url
-    pkg: $pkg
-    ver: $ver
-    bin-dir: $BIN_DIR
-    pkg-dir: $PKGS_DIR
-    build-dir: $BUILD_DIR
-    """
+        #        echo """
+        #    url: $url
+        #    pkg: $pkg
+        #    ver: $ver
+        #    bin-dir: $BIN_DIR
+        #    pkg-dir: $PKGS_DIR
+        #    build-dir: $BUILD_DIR
+        #    """
 
         default_bldit() {
             build_sh "${bldit_args[@]}"
