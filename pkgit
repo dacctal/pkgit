@@ -249,27 +249,21 @@ build_sh() {
         done
     }
 
-    # Extended copy: executables, libs, sources, headers, archives
     copy_all_files() {
         mkdir -p "$INSTALL_DIR"
         find . -type f \( -executable -o -name "*.so*" -o -name "*.a" -o -name "*.h" -o -name "*.hpp" -o -name "*.c" -o -name "*.cpp" \) \
             -exec cp --parents -p {} "$INSTALL_DIR" \;
     }
 
-    # Symlink bins, libs, includes to system dirs
     symlink_install() {
-        # Executables
         find "$INSTALL_DIR" -type f -executable -exec ln -sf {} "$BIN_DIR" \;
 
-        # Libraries
         mkdir -p /usr/local/lib
         find "$INSTALL_DIR" -type f \( -name "*.so*" -o -name "*.a" \) -exec ln -sf {} /usr/local/lib/ \;
 
-        # Include files
         mkdir -p /usr/local/include
         find "$INSTALL_DIR" -type f \( -name "*.h" -o -name "*.hpp" \) -exec ln -sf {} /usr/local/include/ \;
 
-        # Refresh linker cache for shared libs, ignore if permission denied
         command -v ldconfig >/dev/null && sudo ldconfig || true
     }
 
@@ -435,23 +429,69 @@ build_sh() {
     echo "Build and install completed successfully."
 }
 
+check_repo_for_pkg() {
+    local pkg="$1"
+    local repos=()
+    local count=0
+
+    while IFS= read -r repo_line; do
+        repos+=("$repo_line")
+        ((count++))
+    done < <(grep "^$pkg " "$USER_REPOS_DIR/repos")
+
+    if ((count == 0)); then
+        echo "No packages found for: $pkg" >&2
+        return 1
+    elif ((count == 1)); then
+        echo "${repos[0]}"
+        return 0
+    fi
+
+    echo "Multiple packages found for '$pkg':"
+    PS3="Enter the number of the package to use (1-$count), or Ctrl+C to cancel: "
+
+    select choice in "${repos[@]}"; do
+        if [[ -n "$choice" ]]; then
+            echo "$choice"
+            return 0
+        else
+            echo "Invalid selection."
+        fi
+    done
+}
+
 install_pkg() {
     local input="$1"
-    local pkg ver
+    local pkg url ver selected
+
     if [[ "$input" == *:* ]]; then
         pkg="${input%%:*}"
-        url=$(grep "$pkg" "$USER_REPOS_DIR/repos" | awk '{print $2}')
+        url=$(grep "^$pkg " "$USER_REPOS_DIR/repos" | awk '{print $2}')
         ver="${input##*:}"
     else
         pkg="$input"
-        url=$(grep "$pkg" "$USER_REPOS_DIR/repos" | awk '{print $2}')
-        ver=$(repo_from_git $(grep "$url" "$USER_REPOS_DIR/repos" | awk '{print $2}'))
+        selected=$(check_repo_for_pkg "$pkg") || {
+            echo "Package selection cancelled or failed."
+            return 1
+        }
+
+        pkg=$(awk '{print $1}' <<<"$selected" | tr -d '\r\n')
+        url=$(awk '{print $2}' <<<"$selected" | tr -d '\r\n')
+
+        url="${url#packages}"
+
+        url="${url#"${url%%[![:space:]]*}"}"
+
+        ver=$(repo_from_git "$url")
     fi
+
     echo "version: $ver"
+    echo "url: $url"
+    echo "pkg: $pkg"
 
-    rm -rf "${BUILD_DIR}/${pkg}-"*
+    rm -rf "${BUILD_DIR:?}/${pkg}-"*
 
-    if [ -d "$PKGS_DIR/$pkg/$ver" ]; then
+    if [ -d "${PKGS_DIR:?}/$pkg/$ver" ]; then
         echo "$pkg:$ver already installed."
         exit 0
     fi
@@ -463,7 +503,7 @@ install_pkg() {
     echo -e "$(echo_pkgit) Installing $pkg:$ver ..."
 
     rm -rf "$BUILD_DIR/$pkg*"
-    local build_dir="$BUILD_DIR/${pkg}-${ver}-$(date +%s)"
+    local build_dir="${BUILD_DIR:?}/${pkg}-${ver}-$(date +%s)"
     rm -rf "$build_dir"
     mkdir -p "$build_dir"
     export ROOT PKGS_DIR BIN_DIR BUILD_DIR="$build_dir"
@@ -496,10 +536,10 @@ install_pkg() {
     }
     echo -e "$(echo_pkgit) Build executed for $pkg:$ver"
 
-    local installed_dir="$PKGS_DIR/$pkg/$ver"
-    [[ -d "$installed_dir" ]] || installed_dir=$(find "$PKGS_DIR/$pkg" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)
+    local installed_dir="${PKGS_DIR:?}/$pkg/$ver"
+    [[ -d "$installed_dir" ]] || installed_dir=$(find "${PKGS_DIR:?}/$pkg" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)
     if [[ -d "$installed_dir" ]]; then
-        ln -sfn "$installed_dir" "$PKGS_DIR/$pkg/HEAD"
+        ln -sfn "$installed_dir" "${PKGS_DIR:?}/$pkg/HEAD"
         echo -e "$(echo_pkgit) Installed HEAD for $pkg -> $(basename "$installed_dir")"
 
         if [[ -d "$installed_dir/bin" ]]; then
@@ -535,23 +575,35 @@ update() {
 }
 
 remove_pkg() {
-    local pkg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-    [[ -z "$pkg" ]] && {
+    local input="$1"
+    local selected pkg url
+
+    pkg=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+    if [[ -z "$pkg" ]]; then
         echo -e "$(echo_pkgit) No package specified"
         return 1
+    fi
+
+    selected=$(check_repo_for_pkg "$pkg") || {
+        echo "Package selection cancelled or failed."
+        return 1
     }
-    [[ -d "$PKGS_DIR/$pkg" ]] || {
+
+    pkg=$(awk '{print $1}' <<<"$selected" | tr -d '\r\n')
+    url=$(awk '{print $2}' <<<"$selected" | tr -d '\r\n')
+
+    [[ -d "${PKGS_DIR:?}/$pkg" ]] || {
         echo -e "$(echo_pkgit) Package $pkg not installed"
         return 1
     }
 
-    if [[ -d "$PKGS_DIR/$pkg/LATEST/bin" ]]; then
-        for f in "$PKGS_DIR/$pkg/LATEST/bin/"*; do
-            [[ -f "$f" ]] && rm -f "$BIN_DIR/$(basename "$f")"
+    if [[ -d "${PKGS_DIR:?}/$pkg/LATEST/bin" ]]; then
+        for f in "${PKGS_DIR:?}/$pkg/LATEST/bin/"*; do
+            [[ -f "$f" ]] && rm -f "${BIN_DIR:?}/$(basename "$f")"
         done
     fi
 
-    rm -rf "$BIN_DIR/$pkg" "$PKGS_DIR/$pkg" "$BUILD_DIR/$pkg-"*
+    rm -rf "${BIN_DIR:?}/$pkg" "${PKGS_DIR:?}/$pkg" "${BUILD_DIR:?}/$pkg-"*
     echo -e "$(echo_pkgit) Removed $pkg"
 }
 
