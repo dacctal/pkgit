@@ -270,7 +270,7 @@ build_sh() {
         mkdir -p /usr/local/include
         find "$INSTALL_DIR" -type f \( -name "*.h" -o -name "*.hpp" \) -exec ln -sf {} /usr/local/include/ \;
 
-        command -v ldconfig >/dev/null && sudo ldconfig || true
+        command -v ldconfig >/dev/null && $su ldconfig || true
     }
 
     make_build() {
