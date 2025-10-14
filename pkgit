@@ -11,7 +11,7 @@ fi
 
 set -euo pipefail
 
-VERSION="0.0.3-leviticus"
+VERSION="0.0.3-dash-line"
 
 PKGIT_LOC=$(dirname "$(readlink -f "${BASH_SOURCE}")")
 PKGIT_SCRIPT="$PKGIT_LOC/$(basename "${BASH_SOURCE[0]}")"
