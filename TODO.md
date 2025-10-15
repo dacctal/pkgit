@@ -1,0 +1,3 @@
+- [ ] when removing a package (if it is a dependency of another installed package), refuse to remove and tell the user what package(s) depend on it.
+- [ ] new option for users to query what files are associated with a given package
+- [ ] new option for user to query info/readme of a given package

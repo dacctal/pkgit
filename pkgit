@@ -270,7 +270,7 @@ build_sh() {
         mkdir -p /usr/local/include
         find "$INSTALL_DIR" -type f \( -name "*.h" -o -name "*.hpp" \) -exec ln -sf {} /usr/local/include/ \;
 
-        command -v ldconfig >/dev/null && $su ldconfig || true
+        command -v ldconfig >/dev/null && ldconfig || true
     }
 
     make_build() {
@@ -481,19 +481,19 @@ install_pkg() {
             return 1
         }
 
-        pkg=$(awk '{print $1}' <<<"$selected" | tr -d '\r\n')
-        url=$(awk '{print $2}' <<<"$selected" | tr -d '\r\n')
-
-        url="${url#packages}"
-
+        # Clean and robust extraction -- do not trust whitespace, remove newlines, never prepend
+        pkg=$(echo "$selected" | awk '{print $1}' | tr -d '\r\n ')
+        url=$(echo "$selected" | awk '{print $2}' | tr -d '\r\n ')
+        pkg="${pkg//Multiple/}"
+        url="${url//packages/}"
         url="${url#"${url%%[![:space:]]*}"}"
 
         ver=$(repo_from_git "$url")
     fi
 
-    #    echo "version: $ver"
-    #    echo "url: $url"
-    #    echo "pkg: $pkg"
+    #echo "version: $ver"
+    #echo "url: $url"
+    #echo "pkg: $pkg"
 
     rm -rf "${BUILD_DIR:?}/${pkg}-"*
 
@@ -599,21 +599,28 @@ remove_pkg() {
         return 1
     }
 
-    pkg=$(awk '{print $1}' <<<"$selected" | tr -d '\r\n')
-    url=$(awk '{print $2}' <<<"$selected" | tr -d '\r\n')
+    pkg=$(echo "$selected" | awk '{print $1}' | tr -d '\r\n ')
+    url=$(echo "$selected" | awk '{print $2}' | tr -d '\r\n ')
 
-    [[ -d "${PKGS_DIR:?}/$pkg" ]] || {
+    pkg="${pkg//Multiple/}"
+    url="${url//packages/}"
+    pkg="${pkg#"${pkg%%[![:space:]]*}"}"
+    pkg="${pkg%"${pkg##*[![:space:]]}"}"
+    url="${url#"${url%%[![:space:]]*}"}"
+    url="${url%"${url##*[![:space:]]}"}"
+
+    [[ -d "$PKGS_DIR/$pkg" ]] || {
         echo -e "$(echo_pkgit) Package $pkg not installed"
         return 1
     }
 
-    if [[ -d "${PKGS_DIR:?}/$pkg/LATEST/bin" ]]; then
-        for f in "${PKGS_DIR:?}/$pkg/LATEST/bin/"*; do
-            [[ -f "$f" ]] && rm -f "${BIN_DIR:?}/$(basename "$f")"
+    if [[ -d "$PKGS_DIR/$pkg/LATEST/bin" ]]; then
+        for f in "$PKGS_DIR/$pkg/LATEST/bin/"*; do
+            [[ -f "$f" ]] && rm -f "$BIN_DIR/$(basename "$f")"
         done
     fi
 
-    rm -rf "${BIN_DIR:?}/$pkg" "${PKGS_DIR:?}/$pkg" "${BUILD_DIR:?}/$pkg-"*
+    rm -rf "$BIN_DIR/$pkg" "$PKGS_DIR/$pkg" "$BUILD_DIR/$pkg-"*
     echo -e "$(echo_pkgit) Removed $pkg"
 }
 
