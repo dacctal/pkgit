@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 
-if which doas >/dev/null; then
-    su=doas
-elif which sudo >/dev/null; then
-    su=sudo
+if command -v doas >/dev/null; then
+        su=doas
+elif command -v sudo >/dev/null; then
+        su=sudo
 else
-    echo "[ERROR] Cannot get root access"
-    exit 1
+        echo "[ERROR] Cannot get root access"
+        exit 1
 fi
 
 if ((EUID != 0)); then
-    exec "$su" "$0" "$@"
+        exec "$su" "$0" "$@"
 fi
 
 if [ -f "pkgit" ]; then
-    chmod +x *
-    cp pkgit /usr/bin
+        chmod +x *
+        cp pkgit /usr/bin
 else
-    curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/pkgit" >>pkgit
-    chmod +x pkgit
-    mv pkgit /usr/bin
+        curl "https://raw.githubusercontent.com/dacctal/pkgit/refs/heads/main/pkgit" >>pkgit
+        chmod +x pkgit
+        mv pkgit /usr/bin
 fi
