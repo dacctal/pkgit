@@ -6,29 +6,29 @@
 
 </div>
 
-## what is this?
-pkgit is an unconventional package manager designed to create package repos purely from that package's git repo.
+## What is this?
+pkgit is an unconventional package manager designed to compile & install packages directly from their git repository.
 
-As it is, pkgit is capable of dependency management, but you will likely have to determine the dependency URLs for each package you install (`/etc/pkgit/deps/[pkg-name]`). There's not a universal way to check for dependencies without using an existing package manager (unless the repo you're installing has a deps.sh file).
-
-## installation
-### from source
-you can compile and install pkgit by running the install script:
+## Installation
+### From Source
+You can compile and install pkgit by running the install script:
 ```
 git clone https://github.com/dacctal/pkgit
 cd pkgit
 ./install.sh
 ```
-*[you can then remove the clone directory]*
+This may ask you for your admin password in order to move the binary to `/usr/bin`
+***Make sure this does not produce errors!***
+*[You can then remove the clone directory]*
 
 ### pkgit
-you can install pkgit using pkgit:
+You can install pkgit using pkgit:
 ```
 pkgit ar https://github.com/dacctal/pkgit
 pkgit i pkgit
 ```
 
-## options
+## Options
 
 | subcommand        | long command              | description                       |
 |-------------------|---------------------------|-----------------------------------|
@@ -46,3 +46,70 @@ pkgit i pkgit
 |-------------------|---------------------------|-----------------------------------|
 | -h                | --help                    | display the help message          |
 | -v                | --version                 | display version number            |
+
+## Dependency Management
+As it is, pkgit is capable of dependency management, but you will likely have to determine the dependency URLs for each package you install (`/etc/pkgit/deps/[pkg-name].pkgdeps`). There's not a universal way to check for dependencies without using an existing package manager (unless the repo you're installing has a pkgdeps file).
+
+### [USER]: Creating a .pkgdeps file
+Thankfully, this is a very simple process.
+
+For each dependency, all you need to do in the .pkgdeps file is paste the dependency's remote git URL in its own line.
+
+Here's an example for `/etc/pkgit/deps/mush.pkgdeps`:
+```
+https://github.com/mpv-player/mpv
+https://github.com/yt-dlp/yt-dlp
+https://github.com/FFmpeg/FFmpeg
+https://github.com/curl/curl
+https://github.com/quodlibet/mutagen
+```
+
+That's it! pkgit will read from this file and resolve these dependencies automatically.
+
+### [DEVELOPER]: Pkgdeps in your package
+If you want your own package's dependencies to be resolved in pkgit, you can create a `pkgdeps` file in the root directory of your project's git repo.
+
+Do not name it anything other than `pkgdeps`, or pkgit will not find the file.
+
+The syntax displayed above applies to this file.
+
+## Custom Compile Instructions
+### [USER]: Creating a bldit file
+The bldit file is a very basic bash script, and is meant exclusively to COMPILE the program.
+
+NOT to install the program.
+
+Creating a custom bldit file is useful for those
+comfortable with going through compile steps manually.
+
+The file is stored in `/etc/pkgit/bldit/` and is named after the package exactly (all lowercase).
+
+It is also a very simple process to create a bldit file. A great example of a bldit file
+is right here in the pkgit repository:
+```
+bldit() {
+  nim c -d:release -o:pkgit src/main.nim
+}
+```
+Basically, this defines a bash function called `bldit` that contains the steps to compile the program.
+
+If you wanted to create your own custom bldit file for pkgit,
+you would make a file: `/etc/pkgit/bldit/pkgit` and create your own bldit function in there.
+
+### [DEVELOPER]: Bldit in your package
+If your package doesn't build correctly using pkgit, you can create a `bldit` file in the root directory of your project's git repo.
+
+Do not name it anything other than `bldit`, or pkgit will not find the file.
+
+The syntax displayed above applies to this file.
+
+## Custom Repositories
+A custom repository is as simple to create as a `pkgdeps` file.
+
+All you need is URLs separated by new lines. Each URL must correspond to a remote git repository of a package.
+
+The file name doesn't matter in this case, because you will add this repository by running:
+`pkgit arp [filename]`
+From here, pkgit will add all the URLs into its own local repository in `/usr/pkgit/repos/repos`.
+
+Because of this simplistic format, you can easily create and share repositories on your own, or using existing larger repos like the AUR and GURU repos.
