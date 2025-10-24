@@ -18,7 +18,9 @@ cd pkgit
 ./install.sh
 ```
 This may ask you for your admin password in order to move the binary to `/usr/bin`
+
 ***Make sure this does not produce errors!***
+
 *[You can then remove the clone directory]*
 
 ### pkgit
@@ -79,8 +81,7 @@ The bldit file is a very basic bash script, and is meant exclusively to COMPILE 
 
 NOT to install the program.
 
-Creating a custom bldit file is useful for those
-comfortable with going through compile steps manually.
+Creating a custom bldit file is useful for those comfortable with going through compile steps manually.
 
 The file is stored in `/etc/pkgit/bldit/` and is named after the package exactly (all lowercase).
 
