@@ -169,11 +169,12 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
 
       let fileName = item.splitPath().tail
       if isExecutable(item):
-        let installPath = installDir / fileName
-        createDir(installDir)
+        if fileName != "bldit":
+          let installPath = installDir / fileName
+          createDir(installDir)
 
-        if not fileExists(installPath):
-          copyFileWithPermissions(item, installPath)
+          if not fileExists(installPath):
+            copyFileWithPermissions(item, installPath)
       elif fileName.endsWith(".h"):
         let installPath = includeDir / fileName
         createDir(includeDir)
