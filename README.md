@@ -75,6 +75,9 @@ Do not name it anything other than `pkgdeps`, or pkgit will not find the file.
 
 The syntax displayed above applies to this file.
 
+> [!WARNING]
+> Recursive dependency management does NOT work in pkgit, so you may want to list your dependencies accordingly.
+
 ## Custom Compile Instructions
 ### [USER]: Creating a bldit file
 The bldit file is a very basic bash script, and is meant exclusively to COMPILE the program.
