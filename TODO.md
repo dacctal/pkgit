@@ -1,5 +1,5 @@
 - [x] when removing a package (if it is a dependency of another installed package), refuse to remove and tell the user what package(s) depend on it.
-- [x] new option for users to query what files are associated with a given package
+- [x] query what files are associated with a given package
 - [x] user-level install option
 - [ ] query info/readme of a given package
 - [ ] binary installs, including cargo-binstall and maybe the bin PM
