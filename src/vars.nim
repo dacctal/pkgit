@@ -2,7 +2,7 @@ import os
 
 const
   # version
-  version*: string = "0.0.4-beachdawn"
+  version*: string = "0.0.5-lovebomb"
 
   # colors
   red*: string = "\e[0;31m"
