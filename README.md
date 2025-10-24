@@ -114,6 +114,12 @@ All you need is URLs separated by new lines. Each URL must correspond to a remot
 
 The file name doesn't matter in this case, because you will add this repository by running:
 `pkgit arp [filename]`
+
+You can also add repositories from a URL by running:
+`pkgit arp [URL]`
+> [!NOTE]
+> This only works if the URL leads to the RAW file.
+
 From here, pkgit will add all the URLs into its own local repository in `/usr/pkgit/repos/repos`.
 
 Because of this simplistic format, you can easily create and share repositories on your own, or using existing larger repos like the AUR and GURU repos.
