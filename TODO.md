@@ -1,4 +1,7 @@
-- [ ] when removing a package (if it is a dependency of another installed package), refuse to remove and tell the user what package(s) depend on it.
+- [x] when removing a package (if it is a dependency of another installed package), refuse to remove and tell the user what package(s) depend on it.
 - [x] new option for users to query what files are associated with a given package
-- [ ] new option for user to query info/readme of a given package
-- [ ] new option to use bin to install binaries from git releases
+- [x] user-level install option
+- [ ] query info/readme of a given package
+- [ ] binary installs, including cargo-binstall and maybe the bin PM
+- [ ] version-specific pkgdeps
+- [ ] branch selection

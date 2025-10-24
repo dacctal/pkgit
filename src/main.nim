@@ -9,23 +9,32 @@ proc main() =
     case args[0]:
       of "ar", "add-repo":
         if args.len > 1:
-          ensureSu()
-          discard addRepo(args[1])
+          if not userLevelMode:
+            ensureSu()
+            discard addRepo(args[1])
+          else:
+            discard addRepo(args[1])
         else:
           echoPkgit()
           echo red & "[ERROR] " & colorReset & "Needs a parameter!"
       of "arp", "add-repo-pkg":
         if args.len > 1:
-          ensureSu()
-          addRepoPkg(args[1])
+          if not userLevelMode:
+            ensureSu()
+            addRepoPkg(args[1])
+          else:
+            addRepoPkg(args[1])
         else:
           echoPkgit()
           echo red & "[ERROR] " & colorReset & "Needs a parameter!"
       of "i", "install":
         if args.len > 1:
           for i in 1 ..< args.len:
-            ensureSu()
-            installPkg(args[i])
+            if not userLevelMode:
+              ensureSu()
+              installPkg(args[i])
+            else:
+              installPkg(args[i])
         else:
           echoPkgit()
           echo red & "[ERROR] " & colorReset & "Needs a parameter!"
@@ -45,16 +54,22 @@ proc main() =
       of "r", "remove":
         if args.len > 1:
           for i in 1 ..< args.len:
-            ensureSu()
-            removePkg(args[i])
+            if not userLevelMode:
+              ensureSu()
+              removePkg(args[i])
+            else:
+              removePkg(args[i])
         else:
           echoPkgit()
           echo red & "[ERROR] " & colorReset & "Needs a parameter!"
       of "rr", "remove-repo":
         if args.len > 1:
           for i in 1 ..< args.len:
-            ensureSu()
-            removeRepo(args[i])
+            if not userLevelMode:
+              ensureSu()
+              removeRepo(args[i])
+            else:
+              removeRepo(args[i])
         else:
           echoPkgit()
           echo red & "[ERROR] " & colorReset & "Needs a parameter!"
@@ -80,8 +95,11 @@ proc main() =
           echoPkgit()
           echo red & "[ERROR] " & colorReset & "Needs a parameter!"
       of "u", "update":
-        ensureSu()
-        updatePkgs()
+        if not userLevelMode:
+          ensureSu()
+          updatePkgs()
+        else:
+          updatePkgs()
       of "-h", "--help":
         help()
       of "-v", "--version":

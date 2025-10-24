@@ -15,9 +15,18 @@ You can compile and install pkgit by running the install script:
 ```
 git clone https://github.com/dacctal/pkgit
 cd pkgit
-./install.sh
+./install-system.sh
 ```
 This may ask you for your admin password in order to move the binary to `/usr/bin`
+
+If you can't grant admin permissions, you can install pkgit at the user-level:
+```
+git clone https://github.com/dacctal/pkgit
+cd pkgit
+./install-user.sh
+```
+
+When first running pkgit, it will ask you if you want to install packages at user-level. Answer according to the choice you made here.
 
 ***Make sure this does not produce errors!***
 

@@ -1,4 +1,47 @@
-import os
+import os, parsetoml, strutils
+
+proc isUserLevel*(): bool =
+  var configFile: File
+  if fileExists("/etc/pkgit/config.toml"):
+    try:
+      let toml = parsefile("/etc/pkgit/config.toml")
+      if toml["general"]["user-level"].getBool():
+        return true
+      elif not toml["general"]["user-level"].getBool():
+        return false
+    except:
+      discard
+  if fileExists(getEnv("HOME") & "/.config/pkgit/config.toml"):
+    try:
+      let toml = parsefile(getEnv("HOME") & "/.config/pkgit/config.toml")
+      if toml["general"]["user-level"].getBool():
+        return true
+      elif not toml["general"]["user-level"].getBool():
+        return false
+    except:
+      discard
+
+  else:
+    echo "Do you want to install software at user-level (no sudo)? [Y/n]: "
+    var isUserLevel = readLine(stdin)
+    if isUserLevel == "n":
+      let configDir: string = "/etc/pkgit"
+      let config: string = configDir & "/config.toml"
+      createDir(configDir)
+      configFile = open(config, fmWrite)
+      configFile.writeLine("[general]")
+      configFile.writeLine("user-level = false")
+      configFile.close()
+      return false
+    else:
+      let configDir: string = getEnv("HOME") & "/.config/pkgit"
+      let config: string = configDir & "/config.toml"
+      createDir(configDir)
+      configFile = open(config, fmWrite)
+      configFile.writeLine("[general]")
+      configFile.writeLine("user-level = true")
+      configFile.close()
+      return true
 
 const
   # version
@@ -42,23 +85,22 @@ const
   # reset
   colorReset*: string = "\e[0m"
 
-  # dirs
+let userLevelMode* = isUserLevel()
+
+let
   homeDir*: string = getEnv("HOME")
-  pkgitDir*: string = "/var/pkgit"
-  # symlinks
-  appDir*: string = "/usr" & "/share/applications"
-  binDir*: string = "/usr" & "/bin"
-  libDir*: string = "/usr" & "/lib"
-  includeDir*: string = "/usr" & "/include"
-  # install process
+  pkgitDir*: string = if userLevelMode: homeDir & "/.local/share/pkgit" else: "/var/pkgit"
+  appDir*: string = if userLevelMode: homeDir & "/.local/share/applications" else: "/usr/share/applications"
+  binDir*: string = if userLevelMode: homeDir & "/.local/share/bin" else: "/usr/bin"
+  libDir*: string = if userLevelMode: homeDir & "/.local/share/lib" else: "/usr/lib"
+  includeDir*: string = if userLevelMode: homeDir & "/.local/share/include" else: "/usr/include"
   pkgsDir*: string = pkgitDir & "/pkgs"
   buildDir*: string = pkgitDir & "/build"
-  # configs
-  configDir*:string = "/etc/pkgit"
+  configDir*: string = if userLevelMode: homeDir & "/.config/pkgit" else: "/etc/pkgit"
+  config*: string = configDir & "/config.toml"
   blditDir*: string = configDir & "/bldit"
   depsDir*: string = configDir & "/deps"
   reposDir*: string = configDir & "/repos"
-  # altogether
   essentialDirs*: array[10, string] = [
     pkgitDir,
     appDir,
