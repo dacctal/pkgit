@@ -45,7 +45,7 @@ proc isUserLevel*(): bool =
 
 const
   # version
-  version*: string = "0.0.6-lockback"
+  version*: string = "0.0.7-remap"
 
   # colors
   red*: string = "\e[0;31m"
