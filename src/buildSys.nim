@@ -26,12 +26,7 @@ proc cargoBuild*(installDir: string, url: string, tag: string): int =
     echoPkgit()
     echo red & "[ERROR] " & colorReset & "Cargo isn't installed!"
     return 1
-  let cargoToml = parseFile("Cargo.toml")
-  let crate = cargoToml["package"]["name"].getStr()
-  if tag == "HEAD":
-    discard execProcess("cargo install --git " & url & " --root " & installDir & " " & crate)
-  else:
-    discard execProcess("cargo install --git " & url & " --tag " & tag & " --root " & installDir & " " & crate)
+  discard execProcess("cargo build --release")
   return 0
 
 proc cmakeBuild*(installDir: string, url: string, tag: string): int =
@@ -115,7 +110,7 @@ proc nimBuild*(installDir: string, url: string, tag: string): int =
     echoPkgit()
     echo red & "[ERROR] " & colorReset & "Nimble isn't installed!"
     return 1
-  discard execProcess("nimble install " & pkgFromUrl(url) & " -p " & installDir)
+  discard execProcess("nimble build")
   return 0
 
 proc pnpmBuild*(installDir: string, url: string, tag: string): int =
