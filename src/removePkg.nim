@@ -91,6 +91,8 @@ proc removePkg*(pkg: string, tag: string = "HEAD") =
       let pkgName = installedDirCopy.splitPath().tail
       stdout.write blue & "Removing symlinks "
       runLoading(proc() = 
+        if fileExists(appDir / pkg.splitPath().tail & ".desktop"):
+          removeFile(appDir / pkg.splitPath().tail & ".desktop")
         for file in walkDirRec(installedDirCopy):
           removeFile(binDir / file.splitPath().tail)
           removeDir(buildDir / file.splitPath().tail)
