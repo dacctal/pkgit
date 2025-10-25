@@ -9,8 +9,14 @@
 ## What is this?
 pkgit is an unconventional package manager designed to compile & install packages directly from their git repository.
 
+> [!DISCLAIMER]
+> Due to the nature of pkgit, you are solely responsible for vetting the repos that you add to your system.
+>
+> Use at your own risk.
+
 ## Installation
 ### From Source
+#### System-level
 You can compile and install pkgit by running the install script:
 ```
 git clone https://github.com/dacctal/pkgit
@@ -19,6 +25,7 @@ cd pkgit
 ```
 This may ask you for your admin password in order to move the binary to `/usr/bin`
 
+#### User-level
 If you can't grant admin permissions, you can install pkgit at the user-level:
 ```
 git clone https://github.com/dacctal/pkgit
@@ -26,18 +33,23 @@ cd pkgit
 ./install-user.sh
 ```
 
+***Make sure the compile does not produce errors!***
+
+### Nimble
+You can also avoid cloning the repository entirely, and install directly; assuming you have the nimble package manager:
+```
+nimble install pkgit
+```
+
 When first running pkgit, it will ask you if you want to install packages at user-level. Answer according to the choice you made here.
 
-***Make sure this does not produce errors!***
-
-*[You can then remove the clone directory]*
-
-### pkgit
-You can install pkgit using pkgit:
+## Post-install
+Add pkgit to its own repo:
 ```
 pkgit ar https://github.com/dacctal/pkgit
 pkgit i pkgit
 ```
+***This allows pkgit to update itself, you'll want to do this!***
 
 ## Options
 
