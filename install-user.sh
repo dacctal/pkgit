@@ -1,3 +1,3 @@
-nim c -d:release -o:pkgit src/main.nim &&
+nim c -d:release -o:pkgit src/pkgit.nim &&
   clear &&
   mv pkgit ~/.local/bin/pkgit

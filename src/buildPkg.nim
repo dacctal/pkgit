@@ -117,37 +117,41 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
         buildSysExists = false
 
   if not buildSysExists:
-    for kind, path in walkDir("."):
-      if path.endsWith(".nimble"):
-        echoPkgit()
-        echo green & "[DETECTED] " & colorReset & "Build system:\t" & blue & path
-        echoPkgit()
-        stdout.write blue & "Building "
-        try:
-          var failed: bool
-          runLoading(proc() =
-            if nimBuild(installDir, url, tag) == 1:
-              failed = true
-          )
-          stdout.write colorReset
-          if failed:
-            echo ""
+    for kind, path in walkDir(srcDir):
+      if kind == pcFile:
+        echo path
+        if path.endsWith("nimble"):
+          echoPkgit()
+          echo green & "[DETECTED] " & colorReset & "Build system:\t" & blue & "nimble" & colorReset
+          echoPkgit()
+          stdout.write blue & "Building "
+          try:
+            var failed: bool
+            runLoading(proc() =
+              if nimBuild(installDir, url, tag) == 1:
+                failed = true
+            )
+            stdout.write colorReset
+            if failed:
+              echo ""
+              continue
+            eraseLine()
+            echoPkgit()
+            echo green & "[SUCCESS] " & colorReset & "Package built:\t" & green & pkg & colorReset
+            buildSysExists = true
+            break
+          except:
+            eraseLine()
+            echoPkgit()
+            echo red & "[ERROR] " & colorReset & "Build Failed!"
             continue
-          eraseLine()
-          echoPkgit()
-          echo green & "[SUCCESS] " & colorReset & "Package built:\t" & green & pkg & colorReset
-          buildSysExists = true
-          break
-        except:
-          eraseLine()
-          echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Build Failed!"
+        else:
           continue
-      else:
-        echoPkgit()
-        echo red & "[ERROR] " & colorReset & "No build system found."
-        quit(1)
 
+  if not buildSysExists:
+    echoPkgit()
+    echo red & "[ERROR] " & colorReset & "No build system found."
+    quit(1)
 
   echoPkgit()
   stdout.write blue & "Installing "
