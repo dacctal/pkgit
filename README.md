@@ -9,7 +9,7 @@
 ## What is this?
 pkgit is an unconventional package manager designed to compile & install packages directly from their git repository.
 
-> [!DISCLAIMER]
+> ***[DISCLAIMER]***
 > Due to the nature of pkgit, you are solely responsible for vetting the repos that you add to your system.
 >
 > Use at your own risk.
