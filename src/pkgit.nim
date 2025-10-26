@@ -1,5 +1,5 @@
 import os, osproc, posix, strutils
-import addRepo, addRepoPkg, ensureSu, filesPkg, help, installPkg, installRepo, listPkgs, pkgFromUrl, removeRepo, removePkg, searchPkgs, setup, updatePkgs, vars
+import addRepo, addRepoPkg, ensureSu, filesPkg, help, installList, installPkg, installRepo, listPkgs, pkgFromUrl, removeRepo, removePkg, searchPkgs, setup, updatePkgs, vars
 
 proc main() =
   setup()
@@ -21,7 +21,11 @@ proc main() =
                 addRepoPkg(args[i])
             else:
               if not gitAttempt.contains("fatal"):
-                discard addRepo(args[i])
+                if not userLevelMode:
+                  ensureSu()
+                  discard addRepo(args[i])
+                else:
+                  discard addRepo(args[i])
               else: 
                 echoPkgit()
                 echo red & "[ERROR] " & colorReset & "repo/repopkg does not exist!"
@@ -61,6 +65,20 @@ proc main() =
                     installPkg(args[i], tag)
                   else:
                     installPkg(args[i], tag)
+            elif args[i].contains("-l:"):
+              let pkg = args[i].replace("-l:", "")
+              if not userLevelMode:
+                ensureSu()
+                installList(pkg)
+              else:
+                installList(pkg)
+            elif args[i].contains("--list:"):
+              let pkg = args[i].replace("--list:", "")
+              if not userLevelMode:
+                ensureSu()
+                installList(pkg)
+              else:
+                installList(pkg)
             elif args[i].startsWith("http"):
               if not userLevelMode:
                 ensureSu()

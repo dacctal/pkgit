@@ -243,13 +243,19 @@ Terminal=false"""
         continue
 
       let fileName = item.splitPath().tail
+      if fileName.endsWith(".sample"):
+        continue
+      if fileName.contains("LICENSE") or fileName.contains("README"):
+        continue
       if isExecutable(item):
         let symlinkPath = binDir / fileName
 
-        if not fileExists(symlinkPath):
+        if not fileExists(symlinkPath) and not symlinkExists(symlinkPath):
           createSymlink(item, symlinkPath)
         else:
           continue
+      else:
+        continue
   )
   stdout.write colorReset
   eraseLine()

@@ -14,6 +14,23 @@ proc removePkg*(pkg: string, tag: string = "HEAD") =
     removeDir(srcDir)
 
     var pkgUrl: string
+    var matches: seq[string] = @[]
+    for line in lines(reposDir & "/repos"):
+      if line.contains(pkg):
+        matches.add(line)
+    if matches.len > 1:
+      for i, match in matches:
+        echo yellow & $i & ":\t" & green & match & colorReset
+      stdout.write("Select the package you'd like to remove (Default: 0): ")
+      let answerStr = readLine(stdin)
+      var answer: int
+      if answerStr.len == 0:
+        answer = 0
+      else:
+        answer = parseInt(answerStr)
+      pkgUrl = matches[answer]
+    else:
+      pkgUrl = matches[0]
 
     for item in walkDirRec(buildDir):
       if item.endsWith("pkgdeps"):

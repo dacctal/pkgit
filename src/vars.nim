@@ -77,7 +77,7 @@ let
 
 const
   # version
-  version*: string = "0.0.8-ergoterm"
+  version*: string = "0.0.9-chekkit"
 
   # colors
   red*: string = "\e[0;31m"
@@ -116,3 +116,6 @@ const
   italic*: string = "\e[3m"
   # reset
   colorReset*: string = "\e[0m"
+
+  # extra strings
+  error*:string = red & "[ERROR]" & colorReset & " "

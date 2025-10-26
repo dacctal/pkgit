@@ -13,19 +13,43 @@ proc installPkg*(pkgCall: string, tag: string = "HEAD") =
   let repos: string = reposDir & "/repos"
   var pkgFound: bool = false
   var alreadyInstalled: bool = false
-  var matches: int = 0
+  var matches: seq[string] = @[]
+  var matchesInstalled:seq[string] = @[]
   if url == "":
     for line in lines(repos):
       if line.strip().toLower().contains("/" & pkg):
-        matches += 1
+        echo line
+        matches.add(line)
         if dirExists(pkgsDir & "/" & pkg & "/" & tag):
-          echoPkgit()
-          echo pkg & ":" & tag & " already installed!"
-          pkgFound = true
-          alreadyInstalled = true
-        else:
-          url = line & ".git"
-          pkgFound = true
+          echo line
+          matchesInstalled.add(line)
+    if matches.len > 1:
+      for i, match in matches:
+        echo yellow & $i & ":\t" & green & match & colorReset
+      echoPkgit()
+      stdout.write("Select the package you'd like to install (Default: 0): ")
+      let answerStr = readLine(stdin)
+      var answer: int
+      if answerStr.len == 0:
+        answer = 0
+      else:
+        answer = parseInt(answerStr)
+      url = matches[answer]
+      echoPkgit()
+      echo "Your choice: " & blue & matches[answer] & colorReset
+      pkgFound = true
+    else:
+      url = matches[0]
+      echo matches[0]
+      echoPkgit()
+      echo "Your choice: " & blue & matches[0] & colorReset
+      pkgFound = true
+    for match in matchesInstalled:
+      if match.contains(url):
+        echoPkgit()
+        echo error & pkg & " --tag:" & tag & " already installed!"
+        pkgFound = true
+        alreadyInstalled = true
   else:
     pkgFound = true
 
