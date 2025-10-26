@@ -70,6 +70,70 @@ pkgit a https://github.com/dacctal/pkgit
 | -h                | --help                    | display the help message          |
 | -v                | --version                 | display version number            |
 
+## Installing Packages
+### Basic install
+Assuming you have already added its respective repo, you can install a package by specifying its name:
+```
+pkgit install [pkgName]
+```
+Or you can use the short command:
+```
+pkgit i [pkgName]
+```
+
+If you want to specify a version other than the latest, you can use `--tag:` or `-t:`:
+```
+pkgit install [pkgName] --tag:[tag]
+```
+
+### Repo install
+If you haven't added the package's repository yet, or you just want to be specific, you can install the package using its git URL:
+```
+pkgit install [url.git]
+```
+
+Installing specific versions works the same as with the package name:
+```
+pkgit install [url.git] --tag:[tag]
+```
+
+### List install
+If you have multiple packages you want to install at once, you have a couple options.
+1. The one-liner:
+```
+pkgit install [pkg1Name] [pkg2Name] --tag:[tag] [url1.git] [url2.git] --tag:[tag]
+```
+2. The package list:
+    - Create a file with all the packages you want to install. The following is that file's syntax:
+    ```
+    [pkgName]
+    [pkgName] [tagnumber]
+    [url.git]
+    [url.git] [tagnumber]
+    ```
+    - Run the install command with `--list:` or `-l:`:
+    ```
+    pkgit install --list:[filename]
+    ```
+
+## Removal
+### Packages
+Removing (uninstalling) a package is as simple as it seems:
+```
+pkgit remove [pkgName]
+```
+Or the short command:
+```
+pkgit r [pkgName]
+```
+
+### Repositories
+Removing a repository is also relatively simple. Run the following command:
+```
+pkgit remove --repo:[pkgName]
+```
+It will then prompt you with every URL in your repo that matches this package's name. Select the index of the one you want to remove.
+
 ## Dependency Management
 As it is, pkgit is capable of dependency management, but you will likely have to determine the dependency URLs for each package you install (`/etc/pkgit/deps/[pkg-name].pkgdeps`). There's not a universal way to check for dependencies without using an existing package manager (unless the repo you're installing has a pkgdeps file).
 
