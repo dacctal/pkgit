@@ -47,8 +47,7 @@ When first running pkgit, it will ask you if you want to install packages at use
 ## Post-install
 Add pkgit to its own repo:
 ```
-pkgit ar https://github.com/dacctal/pkgit
-pkgit i pkgit
+pkgit a https://github.com/dacctal/pkgit
 ```
 ***This allows pkgit to update itself, you'll want to do this!***
 
@@ -56,14 +55,14 @@ pkgit i pkgit
 
 | subcommand        | long command              | description                       |
 |-------------------|---------------------------|-----------------------------------|
-| ar [url.git]      | add-repo [url.git]        | add a package to the local repo   |
-| arp [url.git]     | add-repo-pkg [url.git]    | add a list of repos               |
-| i [pkgs]          | install [pkgs]            | installs a package from the repo  |
-| ir [url.git]      | install-repo [url.git]    | add and install a package         |
+| a [url.git]       | add [url, file]           | add a repo/repopkg                |
+| i [pkgs]          | install [pkgs, urls]      | install a package/repo            |
+| * -t:[tag]        | --tag:[tag]               | specify a tag                     |
 | r [pkgs]          | remove [pkgs]             | removes an installed package      |
-| rr [pkgs]         | remove-repo [pkgs]        | removes a package repo            |
-| l                 | list                      | list installed packages           |
+| * -r:[repo]       | --repo:[repo]             | remove a repo                     |
+| f                 | files                     | list all files of a package       |
 | s [pkgs]          | search [pkgs]             | search for packages               |
+| l                 | list                      | list installed packages           |
 | u                 | update                    | updates all installed packages    |
 
 | flag              | long flag                 | description                       |
@@ -114,7 +113,7 @@ It is also a very simple process to create a bldit file. A great example of a bl
 is right here in the pkgit repository:
 ```
 bldit() {
-  nim c -d:release -o:pkgit src/main.nim
+  nim c -d:release -o:pkgit src/pkgit.nim
 }
 ```
 Basically, this defines a bash function called `bldit` that contains the steps to compile the program.
@@ -135,10 +134,10 @@ A custom repository is as simple to create as a `pkgdeps` file.
 All you need is URLs separated by new lines. Each URL must correspond to a remote git repository of a package.
 
 The file name doesn't matter in this case, because you will add this repository by running:
-`pkgit arp [filename]`
+`pkgit a [filename]`
 
 You can also add repositories from a URL by running:
-`pkgit arp [URL]`
+`pkgit a [URL]`
 > [!NOTE]
 > This only works if the URL leads to the RAW file.
 

@@ -1,9 +1,11 @@
 import os, osproc, strutils
-import help, vars
+import ensureSu, help, vars
 
 proc setup*() = 
   for dir in essentialDirs:
     if not dirExists(dir):
+      if not userLevelMode:
+        ensureSu()
       createDir(dir)
 
   let sysPath = getEnv("PATH")

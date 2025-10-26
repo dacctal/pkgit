@@ -20,32 +20,64 @@ proc isUserLevel*(): bool =
         return false
     except:
       discard
-
   else:
-    echo "Do you want to install software at user-level (no sudo)? [Y/n]: "
-    var isUserLevel = readLine(stdin)
-    if isUserLevel == "n":
-      let configDir: string = "/etc/pkgit"
-      let config: string = configDir & "/config.toml"
-      createDir(configDir)
-      configFile = open(config, fmWrite)
-      configFile.writeLine("[general]")
-      configFile.writeLine("user-level = false")
-      configFile.close()
-      return false
-    else:
-      let configDir: string = getEnv("HOME") & "/.config/pkgit"
-      let config: string = configDir & "/config.toml"
-      createDir(configDir)
-      configFile = open(config, fmWrite)
-      configFile.writeLine("[general]")
-      configFile.writeLine("user-level = true")
-      configFile.close()
-      return true
+    echo "You don't have a config file!"
+    echo "Create one at either `~/.config/pkgit/config.toml` or `/etc/pkgit/config.toml`"
+    echo "Add these lines:"
+    echo "[general]"
+    echo "user-level = true"
+    #let isUserLevel = readLine(stdin)
+    #if isUserLevel.contains('n'):
+    #  let configDir: string = "/etc/pkgit"
+    #  let config: string = configDir & "/config.toml"
+    #  createDir(configDir)
+    #  configFile = open(config, fmWrite)
+    #  configFile.writeLine("[general]")
+    #  configFile.writeLine("user-level = false")
+    #  configFile.close()
+    #  return false
+    #else:
+    #  let configDir: string = getEnv("HOME") & "/.config/pkgit"
+    #  let config: string = configDir & "/config.toml"
+    #  createDir(configDir)
+    #  configFile = open(config, fmWrite)
+    #  configFile.writeLine("[general]")
+    #  configFile.writeLine("user-level = true")
+    #  configFile.close()
+    #  return true
+
+let userLevelMode* = isUserLevel()
+
+let
+  homeDir*: string = getEnv("HOME")
+  pkgitDir*: string = if userLevelMode: homeDir & "/.local/share/pkgit" else: "/var/pkgit"
+  appDir*: string = if userLevelMode: homeDir & "/.local/share/applications" else: "/usr/share/applications"
+  binDir*: string = if userLevelMode: homeDir & "/.local/share/bin" else: "/usr/bin"
+  libDir*: string = if userLevelMode: homeDir & "/.local/share/lib" else: "/usr/lib"
+  includeDir*: string = if userLevelMode: homeDir & "/.local/share/include" else: "/usr/include"
+  pkgsDir*: string = pkgitDir & "/pkgs"
+  buildDir*: string = pkgitDir & "/build"
+  configDir*: string = if userLevelMode: homeDir & "/.config/pkgit" else: "/etc/pkgit"
+  config*: string = configDir & "/config.toml"
+  blditDir*: string = configDir & "/bldit"
+  depsDir*: string = configDir & "/deps"
+  reposDir*: string = configDir & "/repos"
+  essentialDirs*: array[10, string] = [
+    pkgitDir,
+    appDir,
+    binDir,
+    libDir,
+    includeDir,
+    pkgsDir,
+    buildDir,
+    blditDir,
+    depsDir,
+    reposDir
+  ]
 
 const
   # version
-  version*: string = "0.0.7-remap"
+  version*: string = "0.0.8-ergoterm"
 
   # colors
   red*: string = "\e[0;31m"
@@ -84,32 +116,3 @@ const
   italic*: string = "\e[3m"
   # reset
   colorReset*: string = "\e[0m"
-
-let userLevelMode* = isUserLevel()
-
-let
-  homeDir*: string = getEnv("HOME")
-  pkgitDir*: string = if userLevelMode: homeDir & "/.local/share/pkgit" else: "/var/pkgit"
-  appDir*: string = if userLevelMode: homeDir & "/.local/share/applications" else: "/usr/share/applications"
-  binDir*: string = if userLevelMode: homeDir & "/.local/share/bin" else: "/usr/bin"
-  libDir*: string = if userLevelMode: homeDir & "/.local/share/lib" else: "/usr/lib"
-  includeDir*: string = if userLevelMode: homeDir & "/.local/share/include" else: "/usr/include"
-  pkgsDir*: string = pkgitDir & "/pkgs"
-  buildDir*: string = pkgitDir & "/build"
-  configDir*: string = if userLevelMode: homeDir & "/.config/pkgit" else: "/etc/pkgit"
-  config*: string = configDir & "/config.toml"
-  blditDir*: string = configDir & "/bldit"
-  depsDir*: string = configDir & "/deps"
-  reposDir*: string = configDir & "/repos"
-  essentialDirs*: array[10, string] = [
-    pkgitDir,
-    appDir,
-    binDir,
-    libDir,
-    includeDir,
-    pkgsDir,
-    buildDir,
-    blditDir,
-    depsDir,
-    reposDir
-  ]

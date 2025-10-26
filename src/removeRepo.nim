@@ -5,7 +5,7 @@ proc removeRepo*(repo: string) =
   var matches: seq[string] = searchPkgs(repo)
   if matches.len > 0:
     for i, result in matches:
-      let url = result.replace("@[\"", "").replace("\"]", "")
+      let url = result.replace("@[\"", "").replace("\"]", "").toLower()
       let pkg = pkgFromUrl(result)
       if pkg.len < 7:
         echo yellow & $i & ":\t" & green & pkg & ":\t\t" & blue & url & colorReset

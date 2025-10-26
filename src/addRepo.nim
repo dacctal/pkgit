@@ -12,7 +12,9 @@ proc addRepo*(url: string): string =
     echo yellow & "[WARNING] " & colorReset & "Could not fetch tags from:\t" & url
     tags.add("HEAD")
 
-  let latestTag: string = tags[^1]
+  var latestTag: string
+  for tag in tags:
+    latestTag = tag
 
   let repos: string = reposDir & "/repos"
   if not fileExists(repos):
@@ -21,14 +23,14 @@ proc addRepo*(url: string): string =
 
   var found: bool = false
   for line in lines(repos):
-    if line.strip().contains(url.replace(".git", "")):
+    if line.strip().contains(url.toLower().replace(".git", "")):
       found = true
       echoPkgit()
       echo green & "[SKIPPED] " & colorReset & "Repo already exists: " & blue & url & colorReset
       break
   if not found:
     let file = open(repos, fmappend)
-    file.writeLine(url.replace(".git", ""))
+    file.writeLine(url.toLower().replace(".git", ""))
     echoPkgit()
     echo "Successfully added repo: " & url
 

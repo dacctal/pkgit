@@ -1,32 +1,33 @@
 import os, osproc, strutils
-import buildPkg, getDeps, help, vars
+import buildPkg, getDeps, help, pkgFromUrl, vars
 
-proc installPkg*(pkgCall: string) =
-  var tag: string
+proc installPkg*(pkgCall: string, tag: string = "HEAD") =
   var pkg: string
-  if pkgCall.contains(":"):
-    pkg = pkgCall.split(':', 1)[0].toLower()
-    tag = pkgCall.split(':', 1)[1]
+  var url: string
+  if pkgCall.startsWith("http"):
+    url = pkgCall
+    pkg = pkgFromUrl(pkgCall)
   else:
     pkg = pkgCall.toLower()
-    tag = "HEAD"
 
   let repos: string = reposDir & "/repos"
   var pkgFound: bool = false
-  var url: string
   var alreadyInstalled: bool = false
   var matches: int = 0
-  for line in lines(repos):
-    if line.strip().toLower().contains("/" & pkg):
-      matches += 1
-      if dirExists(pkgsDir & "/" & pkg & "/" & tag):
-        echoPkgit()
-        echo pkg & ":" & tag & " already installed!"
-        pkgFound = true
-        alreadyInstalled = true
-      else:
-        url = line & ".git"
-        pkgFound = true
+  if url == "":
+    for line in lines(repos):
+      if line.strip().toLower().contains("/" & pkg):
+        matches += 1
+        if dirExists(pkgsDir & "/" & pkg & "/" & tag):
+          echoPkgit()
+          echo pkg & ":" & tag & " already installed!"
+          pkgFound = true
+          alreadyInstalled = true
+        else:
+          url = line & ".git"
+          pkgFound = true
+  else:
+    pkgFound = true
 
   if pkgFound:
     if not alreadyInstalled:
@@ -54,6 +55,6 @@ proc installPkg*(pkgCall: string) =
       buildPkg(url, tag)
   else:
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Package is not in your repos!"
+    echo red & "[ERROR] " & colorReset & pkg & " is not in your repos!"
     quit(1)
 
