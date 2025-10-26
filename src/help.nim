@@ -6,20 +6,20 @@ proc echoPkgit*() =
 
 proc help*() =
   echo &"""
-{boldMagenta}                             ,          
-                            {boldMagenta}/ \         
-                           {boldMagenta}/   \        
-                       {boldMagenta}__-'     '-__    
-                     {boldMagenta}''--__     __--''  {boldYellow}
-                        {boldYellow}_--{boldMagenta}\   /{boldYellow}--_     
-                    {boldYellow}_--'    {boldMagenta}\ /{boldYellow}    '--_ 
-                   {boldYellow}'-__      {boldMagenta}'{boldYellow}      __-'
-                       {boldYellow}'-__     __-'    
-                           {boldYellow}'-_-'        {colorReset}
+{boldMagenta}                              ,          
+                             {boldMagenta}/ \         
+                            {boldMagenta}/   \        
+                        {boldMagenta}__-'     '-__    
+                      {boldMagenta}''--__     __--''  {boldYellow}
+                         {boldYellow}_--{boldMagenta}\   /{boldYellow}--_     
+                     {boldYellow}_--'    {boldMagenta}\ /{boldYellow}    '--_ 
+                    {boldYellow}'-__      {boldMagenta}'{boldYellow}      __-'
+                        {boldYellow}'-__     __-'    
+                            {boldYellow}'-_-'        {colorReset}
 
-                           pkgit
-                      {italic}{gray}- package it! -{colorReset}
-                      {magenta}v{version}{colorReset}
+                            pkgit
+                       {italic}{gray}- package it! -{colorReset}
+                       {magenta}v{version}{colorReset}
 
 {red}subcommands{colorReset}:
 {colorReset}├─ {green}a{colorReset},   {yellow}add {blue}[url, file]        {gray}# add a repo/repopkg
