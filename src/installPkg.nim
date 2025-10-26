@@ -18,10 +18,8 @@ proc installPkg*(pkgCall: string, tag: string = "HEAD") =
   if url == "":
     for line in lines(repos):
       if line.strip().toLower().contains("/" & pkg):
-        echo line
         matches.add(line)
         if dirExists(pkgsDir & "/" & pkg & "/" & tag):
-          echo line
           matchesInstalled.add(line)
     if matches.len > 1:
       for i, match in matches:
