@@ -107,9 +107,9 @@ pkgit install [pkg1Name] [pkg2Name] --tag:[tag] [url1.git] [url2.git] --tag:[tag
     - Create a file with all the packages you want to install. The following is that file's syntax:
     ```
     [pkgName]
-    [pkgName] [tagnumber]
+    [pkgName] [tag]
     [url.git]
-    [url.git] [tagnumber]
+    [url.git] [tag]
     ```
     - Run the install command with `--list:` or `-l:`:
     ```
