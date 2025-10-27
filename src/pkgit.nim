@@ -39,7 +39,7 @@ proc main() =
                 continue
               if args[i+1].contains("-t:"):
                 tag = args[i+1].replace("-t:", "")
-                if args[i].startsWith("http"):
+                if args[i].startsWith("http") or args[i].startsWith("file:///"):
                   if not userLevelMode:
                     ensureSu()
                     installRepo(args[i], tag)
