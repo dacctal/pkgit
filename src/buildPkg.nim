@@ -20,20 +20,20 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
     echo cloneMsg
     if cloneMsg.contains("fatal"):
       echoPkgit()
-      echo red & "[ERROR] " & colorReset & "Could not clone repository: " & url
+      echo error & "Could not clone repository: " & url
       quit(1)
   else:
     var cloneMsg = execProcess("git -c advice.detachedHead=false clone --branch " & tag & " --depth 1 " & url & " " & srcDir)
     if cloneMsg.contains("fatal"):
       echoPkgit()
-      echo red & "[ERROR] " & colorReset & "Could not clone repository: " & url
+      echo error & "Could not clone repository: " & url
       quit(1)
 
   try:
     setCurrentDir(srcDir)
   except:
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Failed to change directory to " & srcDir
+    echo error & "Failed to change directory to " & srcDir
     quit(1)
 
   var funcMap = initTable[string, proc(a: string, b: string, c: string): int]()
@@ -69,7 +69,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
     except:
       stdout.write "\n"
       echoPkgit()
-      echo red & "[ERROR] " & colorReset & "Build Failed!"
+      echo error & "Build Failed!"
   elif fileExists("bldit"):
     echoPkgit()
     echo green & "[DETECTED] " & colorReset & "Build system:\t" & blue & "bldit"
@@ -85,7 +85,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
     except:
       stdout.write "\n"
       echoPkgit()
-      echo red & "[ERROR] " & colorReset & "Build Failed!"
+      echo error & "Build Failed!"
   else:
     for key, function in funcMap.pairs:
       if fileExists(key):
@@ -111,7 +111,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
         except:
           eraseLine()
           echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Build Failed!"
+          echo error & "Build Failed!"
           continue
       else:
         buildSysExists = false
@@ -143,14 +143,14 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
           except:
             eraseLine()
             echoPkgit()
-            echo red & "[ERROR] " & colorReset & "Build Failed!"
+            echo error & "Build Failed!"
             continue
         else:
           continue
 
   if not buildSysExists:
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "No build system found."
+    echo error & "No build system found."
     quit(1)
 
   echoPkgit()

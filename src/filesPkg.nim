@@ -22,4 +22,4 @@ proc filesPkg*(pkg: string) =
       echo absolutePath(item)
     else:
       echoPkgit()
-      echo red & "[ERROR] " & colorReset & pkg & " is not installed!"
+      echo error & pkg & " is not installed!"

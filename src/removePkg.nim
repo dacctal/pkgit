@@ -37,7 +37,7 @@ proc removePkg*(pkg: string, tag: string = "HEAD") =
         try:
           if pkgUrl in readFile(item):
             echoPkgit()
-            echo red & "[ERROR] " & colorReset & "Package is a dependency of " & extractFileName(parentDir(parentDir(item)))
+            echo error & "Package is a dependency of " & extractFileName(parentDir(parentDir(item)))
             quit(1)
         except:
           continue
@@ -51,13 +51,13 @@ proc removePkg*(pkg: string, tag: string = "HEAD") =
       var cloneMsg = execProcess("git -c advice.detachedHead=false clone --depth 1 " & pkgUrl & " " & srcDir)
       if cloneMsg.contains("fatal"):
         echoPkgit()
-        echo red & "[ERROR] " & colorReset & "Could not clone repository: " & pkgUrl
+        echo error & "Could not clone repository: " & pkgUrl
         quit(1)
     else:
       var cloneMsg = execProcess("git -c advice.detachedHead=false clone --branch " & tag & " --depth 1 " & pkgUrl & " " & srcDir)
       if cloneMsg.contains("fatal"):
         echoPkgit()
-        echo red & "[ERROR] " & colorReset & "Could not clone repository: " & pkgUrl
+        echo error & "Could not clone repository: " & pkgUrl
         quit(1)
 
     setCurrentDir(srcDir)
@@ -128,4 +128,4 @@ proc removePkg*(pkg: string, tag: string = "HEAD") =
       echo green & "[SUCCESS] " & colorReset & "Package removed:\t" & green & pkgName & colorReset
   else:
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & pkg & " is not installed!"
+    echo error & pkg & " is not installed!"

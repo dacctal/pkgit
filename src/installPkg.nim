@@ -38,7 +38,6 @@ proc installPkg*(pkgCall: string, tag: string = "HEAD") =
       pkgFound = true
     else:
       url = matches[0]
-      echo matches[0]
       echoPkgit()
       echo "Your choice: " & blue & matches[0] & colorReset
       pkgFound = true
@@ -61,14 +60,16 @@ proc installPkg*(pkgCall: string, tag: string = "HEAD") =
       if tag == "HEAD":
         var cloneMsg = execProcess("git -c advice.detachedHead=false clone --depth 1 " & url & " " & srcDir)
         if cloneMsg.contains("fatal"):
+          echo cloneMsg
           echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Could not clone repository: " & url
+          echo error & "Could not clone repository: " & url
           quit(1)
       else:
         var cloneMsg = execProcess("git -c advice.detachedHead=false clone --branch " & tag & " --depth 1 " & url & " " & srcDir)
         if cloneMsg.contains("fatal"):
+          echo cloneMsg
           echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Could not clone repository: " & url
+          echo error & "Could not clone repository: " & url
           quit(1)
 
       setCurrentDir(srcDir)
@@ -77,6 +78,6 @@ proc installPkg*(pkgCall: string, tag: string = "HEAD") =
       buildPkg(url, tag)
   else:
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & pkg & " is not in your repos!"
+    echo error & pkg & " is not in your repos!"
     quit(1)
 

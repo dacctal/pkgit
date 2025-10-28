@@ -3,12 +3,13 @@ import help, installPkg, pkgFromUrl, vars
 
 proc updatePkgs*(): void =
   let repos = reposDir & "/repos"
+  let prevDir = getCurrentDir()
   for url in lines(repos):
+    if url == "":
+      continue
     let pkgBuilds = buildDir & "/" & pkgFromUrl(url)
     if dirExists(pkgBuilds):
-      echoPkgit()
-      echo "Updating:\t" & green & pkgFromUrl(url) & colorReset
-      if fileExists(pkgBuilds & "/HEAD"):
+      if dirExists(pkgBuilds & "/HEAD"):
         setCurrentDir(pkgBuilds & "/HEAD")
       else:
         var versions: seq[string] = @[]
@@ -19,15 +20,22 @@ proc updatePkgs*(): void =
       var tags: seq[string] = execProcess("git ls-remote --tags --refs " & url).splitLines()
       if tags.len == 0:
         echoPkgit()
-        echo red & "[ERROR] " & colorReset & "No tags in repository"
+        echo error & "No tags in repository"
       else:
         var tag = tags[0]
         tag = tag[(tag.rfind('/') + 1)..^1]
-        if tag != getCurrentDir():
-          installPkg(pkgFromUrl(url))
+        if tag != getCurrentDir() and not execProcess("git status").contains("up to date"):
+          echoPkgit()
+          echo "Updating:\t" & green & pkgFromUrl(url) & colorReset
+          setCurrentDir(prevDir)
+          installPkg(url)
           echo ""
+        else:
+          echoPkgit()
+          echo green & "[SKIPPED]" & colorReset & " " & pkgFromUrl(url) & " is already up to date!"
     else:
       continue
 
+  echo ""
   echoPkgit()
   echo green & "[SUCCESS] " & colorReset & "Packages are up to date!"

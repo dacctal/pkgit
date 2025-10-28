@@ -28,7 +28,7 @@ proc main() =
                   discard addRepo(args[i])
               else: 
                 echoPkgit()
-                echo red & "[ERROR] " & colorReset & "repo/repopkg does not exist!"
+                echo error & "repo/repopkg does not exist!"
 
       of "i", "install":
         if args.len > 1:
@@ -93,7 +93,7 @@ proc main() =
                 installPkg(args[i])
         else:
           echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Needs a parameter!"
+          echo error & "Needs a parameter!"
 
       of "l", "list":
         listPkgs()
@@ -123,7 +123,7 @@ proc main() =
                 removePkg(args[i])
         else:
           echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Needs a parameter!"
+          echo error & "Needs a parameter!"
 
       of "s", "search":
         if args.len > 1:
@@ -137,7 +137,7 @@ proc main() =
                 echo green & pkg & ":\t" & blue & url & colorReset
         else:
           echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Needs a parameter!"
+          echo error & "Needs a parameter!"
 
       of "f", "files":
         if args.len > 1:
@@ -146,7 +146,7 @@ proc main() =
               filesPkg(args[i])
         else:
           echoPkgit()
-          echo red & "[ERROR] " & colorReset & "Needs a parameter!"
+          echo error & "Needs a parameter!"
 
       of "u", "update":
         if not userLevelMode:

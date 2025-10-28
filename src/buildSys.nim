@@ -1,5 +1,5 @@
 import os, osproc, parsetoml, tables
-import help, pkgFromUrl, vars
+import help, pkgFromUrl, terminal, vars
 
 proc autogenBuild*(installDir: string, url: string, tag: string): int =
   discard execProcess("./autogen.sh")
@@ -10,9 +10,9 @@ proc autotoolsBuild*(installDir: string, url: string, tag: string): int =
   discard execProcess("./configure")
   if fileExists("CMakeLists.txt"):
     if findExe("cmake") == "":
-      stdout.write "\n"
+      eraseLine()
       echoPkgit()
-      echo red & "[ERROR] " & colorReset & "Cmake isn't installed!"
+      echo error & "Cmake isn't installed!"
       return 1
     createDir("build")
     setCurrentDir("build")
@@ -22,18 +22,18 @@ proc autotoolsBuild*(installDir: string, url: string, tag: string): int =
 
 proc cargoBuild*(installDir: string, url: string, tag: string): int =
   if findExe("cargo") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Cargo isn't installed!"
+    echo error & "Cargo isn't installed!"
     return 1
   discard execProcess("cargo build --release")
   return 0
 
 proc cmakeBuild*(installDir: string, url: string, tag: string): int =
   if findExe("cmake") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Cmake isn't installed!"
+    echo error & "Cmake isn't installed!"
     return 1
   createDir("build")
   setCurrentDir("build")
@@ -43,9 +43,9 @@ proc cmakeBuild*(installDir: string, url: string, tag: string): int =
 
 proc goBuild*(installDir: string, url: string, tag: string): int =
   if findExe("go") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Go isn't installed!"
+    echo error & "Go isn't installed!"
     return 1
   discard execProcess("go env -w GOBIN=" & installDir)
   discard execProcess("go install " & url & "@" & tag)
@@ -53,18 +53,18 @@ proc goBuild*(installDir: string, url: string, tag: string): int =
 
 proc gradleBuild*(installDir: string, url: string, tag: string): int =
   if findExe("gradle") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Gradle isn't installed!"
+    echo error & "Gradle isn't installed!"
     return 1
   discard execProcess("gradle build")
   return 0
 
 proc makeBuild*(installDir: string, url: string, tag: string): int =
   if findExe("make") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Make isn't installed!"
+    echo error & "Make isn't installed!"
     return 1
   elif fileExists("autogen.sh"):
     discard autogenBuild(installDir, url, tag)
@@ -76,9 +76,9 @@ proc makeBuild*(installDir: string, url: string, tag: string): int =
 
 proc mesonBuild*(installDir: string, url: string, tag: string): int =
   if findExe("meson") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Meson isn't installed!"
+    echo error & "Meson isn't installed!"
     quit(1)
     return 1
   discard execProcess("meson setup build")
@@ -87,18 +87,18 @@ proc mesonBuild*(installDir: string, url: string, tag: string): int =
 
 proc ninjaBuild*(installDir: string, url: string, tag: string): int =
   if findExe("ninja") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Ninja isn't installed!"
+    echo error & "Ninja isn't installed!"
     return 1
   discard execProcess("ninja")
   return 0
 
 proc nixBuild*(installDir: string, url: string, tag: string): int =
   if findExe("nix") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Nix isn't installed!"
+    echo error & "Nix isn't installed!"
     return 1
   discard execProcess("nix run --experimental-features 'nix-command flakes'")
   discard execProcess("nix run git+" & url)
@@ -106,18 +106,18 @@ proc nixBuild*(installDir: string, url: string, tag: string): int =
 
 proc nimBuild*(installDir: string, url: string, tag: string): int =
   if findExe("nimble") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Nimble isn't installed!"
+    echo error & "Nimble isn't installed!"
     return 1
   discard execProcess("nimble build")
   return 0
 
 proc pnpmBuild*(installDir: string, url: string, tag: string): int =
   if findExe("pnpm") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Pnpm isn't installed!"
+    echo error & "Pnpm isn't installed!"
     return 1
   discard execProcess("pnpm install")
   discard execProcess("pnpm run build")
@@ -125,9 +125,9 @@ proc pnpmBuild*(installDir: string, url: string, tag: string): int =
 
 proc pythonBuild*(installDir: string, url: string, tag: string): int =
   if findExe("pipx") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Pipx isn't installed!"
+    echo error & "Pipx isn't installed!"
     return 1
   let pyprojectToml = parseFile("pyproject.toml")
   let pypkg = pyprojectToml["project"]["name"].getStr()
@@ -137,9 +137,9 @@ proc pythonBuild*(installDir: string, url: string, tag: string): int =
 
 proc zigBuild*(installDir: string, url: string, tag: string): int =
   if findExe("zig") == "":
-    stdout.write "\n"
+    eraseLine()
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "Zig isn't installed!"
+    echo error & "Zig isn't installed!"
     return 1
   discard execProcess("zig build")
   return 0

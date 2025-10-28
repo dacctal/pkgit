@@ -13,7 +13,7 @@ proc removeRepo*(repo: string) =
         echo yellow & $i & ":\t" & green & pkg & ":\t" & blue & url & colorReset
   else:
     echoPkgit()
-    echo red & "[ERROR] " & colorReset & "No matches found!"
+    echo error & "No matches found!"
     quit(1)
 
   stdout.write("Select the repo you'd like to remove (Default: 0): ")
