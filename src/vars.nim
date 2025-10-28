@@ -77,7 +77,7 @@ let
 
 const
   # version
-  version*: string = "0.0.10-bitflip"
+  version*: string = "0.0.11-cleanup"
 
   # colors
   red*: string = "\e[0;31m"
