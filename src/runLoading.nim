@@ -33,7 +33,3 @@ proc runLoading*(task: proc()) =
     done = true
     sync()
     stdout.write colorReset
-
-# stdout.write "Starting work "
-# runLoading(myLongRunningTask)
-# echo "\nWork complete!"
