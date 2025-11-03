@@ -1,5 +1,5 @@
-import os, osproc, strutils, terminal, std/dirs
-import help, pkgFromUrl, runLoading, searchPkgs, vars
+import os, osproc, strutils, terminal
+import help, pkgFromUrl, runLoading, vars
 
 proc removePkg*(pkg: string, tag: string = "HEAD") =
   var installedDirs: seq[string] = @[]
@@ -117,7 +117,7 @@ proc removePkg*(pkg: string, tag: string = "HEAD") =
 
       eraseLine()
       echoPkgit()
-      echo green & "[SUCCESS] " & colorReset & "Removed symlinks"
+      echo success & "Removed symlinks"
 
       stdout.write blue & "Removing package "
       runLoading(proc() = removeDir(installedDirCopy))
@@ -125,7 +125,7 @@ proc removePkg*(pkg: string, tag: string = "HEAD") =
       eraseLine()
       stdout.write colorReset
       echoPkgit()
-      echo green & "[SUCCESS] " & colorReset & "Package removed:\t" & green & pkgName & colorReset
+      echo success & "Package removed:\t" & green & pkgName & colorReset
   else:
     echoPkgit()
     echo error & pkg & " is not installed!"

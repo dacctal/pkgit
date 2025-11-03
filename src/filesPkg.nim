@@ -1,4 +1,4 @@
-import os, strutils
+import os
 import help, vars
 
 proc filesPkg*(pkg: string) =

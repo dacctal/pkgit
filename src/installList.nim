@@ -1,5 +1,5 @@
 import os, osproc, strutils
-import addRepo, help, installPkg, installRepo, pkgFromUrl, vars
+import help, installPkg, installRepo, vars
 
 proc installList*(param: string) =
   var tag: string

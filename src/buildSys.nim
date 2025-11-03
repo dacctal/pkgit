@@ -1,4 +1,4 @@
-import os, osproc, parsetoml, tables
+import os, osproc, parsetoml, strutils
 import help, pkgFromUrl, terminal, vars
 
 proc autogenBuild*(installDir: string, url: string, tag: string): int =
@@ -41,14 +41,17 @@ proc cmakeBuild*(installDir: string, url: string, tag: string): int =
   discard execProcess("make")
   return 0
 
-proc goBuild*(installDir: string, url: string, tag: string): int =
+proc goBuild*(installDir: string, url: string, tag: string = "latest"): int =
   if findExe("go") == "":
     eraseLine()
     echoPkgit()
     echo error & "Go isn't installed!"
     return 1
-  discard execProcess("go env -w GOBIN=" & installDir)
-  discard execProcess("go install " & url & "@" & tag)
+  if fileExists("main.go"):
+    discard execProcess("go build -o " & pkgFromUrl(url) & "main.go")
+  else:
+    discard execProcess("go env -w GOBIN=" & installDir)
+    discard execProcess("go install " & url & "@" & tag)
   return 0
 
 proc gradleBuild*(installDir: string, url: string, tag: string): int =

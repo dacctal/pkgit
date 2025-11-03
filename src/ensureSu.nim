@@ -1,4 +1,4 @@
-import os, osproc, posix, strutils
+import os, osproc, posix
 
 proc needsRoot(): bool =
   when defined(posix):

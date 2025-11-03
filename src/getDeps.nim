@@ -10,7 +10,7 @@ proc getDeps*(pkgName: string) =
         let pkg = pkgFromUrl(url)
         if dirExists(pkgsDir & "/" & pkg & "/" & tag):
           echoPkgit()
-          echo pkg & " already installed!"
+          echo skipped & pkg & " already installed!"
           continue
         buildPkg(url.split(' ', 1)[0], tag)
       else:
@@ -18,7 +18,7 @@ proc getDeps*(pkgName: string) =
         let pkg = pkgFromUrl(url)
         if dirExists(pkgsDir & "/" & pkg):
           echoPkgit()
-          echo pkg & " already installed!"
+          echo skipped & pkg & " already installed!"
           continue
         buildPkg(url)
   elif fileExists(depsDir / pkgName & ".pkgdeps"):
@@ -29,7 +29,7 @@ proc getDeps*(pkgName: string) =
         let pkg = pkgFromUrl(url)
         if dirExists(pkgsDir & "/" & pkg & "/" & tag):
           echoPkgit()
-          echo pkg & " already installed!"
+          echo skipped & pkg & " already installed!"
           continue
         buildPkg(url.split(' ', 1)[0], tag)
       else:
@@ -37,6 +37,6 @@ proc getDeps*(pkgName: string) =
         let pkg = pkgFromUrl(url)
         if dirExists(pkgsDir & "/" & pkg):
           echoPkgit()
-          echo pkg & " already installed!"
+          echo skipped & pkg & " already installed!"
           continue
         buildPkg(url)

@@ -9,7 +9,7 @@ proc addRepo*(url: string): string =
       tags.add(tag[(tag.rfind('/') + 1)..^1])
   else:
     echoPkgit()
-    echo yellow & "[WARNING] " & colorReset & "Could not fetch tags from:\t" & url
+    echo warning & "Could not fetch tags from:\t" & url
     tags.add("HEAD")
 
   var latestTag: string
@@ -26,7 +26,7 @@ proc addRepo*(url: string): string =
     if line.strip().contains(url.toLower().replace(".git", "")):
       found = true
       echoPkgit()
-      echo green & "[SKIPPED] " & colorReset & "Repo already exists: " & blue & url & colorReset
+      echo skipped & "Repo already exists: " & blue & url & colorReset
       break
   if not found:
     let file = open(repos, fmappend)

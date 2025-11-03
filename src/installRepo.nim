@@ -1,5 +1,4 @@
-import os, strutils
-import addRepo, help, installPkg, pkgFromUrl, vars
+import addRepo, installPkg, pkgFromUrl
 
 proc installRepo*(url: string, tag: string = "HEAD") =
   var pkg: string = pkgFromUrl(url)

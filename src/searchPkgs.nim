@@ -1,5 +1,5 @@
-import os, strutils
-import help, vars
+import strutils
+import vars
 
 proc searchPkgs*(param: string): seq[string] =
   let repos: string = reposDir & "/repos"

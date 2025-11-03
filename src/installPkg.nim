@@ -44,7 +44,7 @@ proc installPkg*(pkgCall: string, tag: string = "HEAD") =
     for match in matchesInstalled:
       if match.contains(url):
         echoPkgit()
-        echo error & pkg & " --tag:" & tag & " already installed!"
+        echo skipped & pkg & " --tag:" & tag & " already installed!"
         pkgFound = true
         alreadyInstalled = true
   else:

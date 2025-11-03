@@ -1,4 +1,4 @@
-import os, osproc, strutils
+import os, strutils
 import ensureSu, help, vars
 
 proc setup*() = 
@@ -20,21 +20,21 @@ proc setup*() =
         file.writeLine("PATH=$PATH:" & binDir)
         file.close()
         echoPkgit()
-        echo yellow & "[WARNING] " & colorReset & "PATH modified, restart your shell!"
+        echo warning & "PATH modified, restart your shell!"
     elif getEnv("SHELL").contains("zsh"):
       if not readFile(zshrc).contains(binDir):
         let file = open(zshrc, fmappend)
         file.writeLine("PATH=$PATH:" & binDir)
         file.close()
         echoPkgit()
-        echo yellow & "[WARNING] " & colorReset & "PATH modified, restart your shell!"
+        echo warning & "PATH modified, restart your shell!"
     elif getEnv("SHELL").contains("fish"):
       if not readFile(fishrc).contains(binDir):
         let file = open(zshrc, fmappend)
         file.writeLine("fish_add_path -aP " & binDir)
         file.close()
         echoPkgit()
-        echo yellow & "[WARNING] " & colorReset & "PATH modified, restart your shell!"
+        echo warning & "PATH modified, restart your shell!"
     elif getEnv("SHELL").contains("nu"):
       if not readFile(nushrc).contains(binDir):
         let file = open(nushrc, fmappend)
@@ -42,4 +42,4 @@ proc setup*() =
         file.writeLine("path add \"" & binDir & "\"")
         file.close()
         echoPkgit()
-        echo yellow & "[WARNING] " & colorReset & "PATH modified, restart your shell!"
+        echo warning & "PATH modified, restart your shell!"

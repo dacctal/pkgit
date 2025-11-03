@@ -1,4 +1,4 @@
-import std/dirs, os, osproc, algorithm, strutils
+import os, osproc, algorithm, strutils
 import help, installPkg, pkgFromUrl, vars
 
 proc updatePkgs*(): void =
@@ -32,10 +32,10 @@ proc updatePkgs*(): void =
           echo ""
         else:
           echoPkgit()
-          echo green & "[SKIPPED]" & colorReset & " " & pkgFromUrl(url) & " is already up to date!"
+          echo skipped & " " & pkgFromUrl(url) & " is already up to date!"
     else:
       continue
 
   echo ""
   echoPkgit()
-  echo green & "[SUCCESS] " & colorReset & "Packages are up to date!"
+  echo success & "Packages are up to date!"

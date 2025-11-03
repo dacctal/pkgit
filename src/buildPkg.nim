@@ -1,4 +1,4 @@
-import std/[dirs, symlinks], os, osproc, strformat, strutils, tables, terminal
+import std/dirs, os, osproc, strformat, strutils, tables, terminal
 import buildSys, help, pkgFromUrl, runLoading, vars
 
 proc isExecutable(path: string): bool =
@@ -56,7 +56,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
   var buildSysExists: bool
   if fileExists(blditDir & "/" & pkg):
     echoPkgit()
-    echo green & "[DETECTED] " & colorReset & "Build system:\t" & blue & "Custom bldit"
+    echo detected & "Build system:\t" & blue & "Custom bldit"
     echoPkgit()
     stdout.write blue & "Building "
     try:
@@ -64,7 +64,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
       stdout.write colorReset
       eraseLine()
       echoPkgit()
-      echo green & "[SUCCESS] " & colorReset & "Package built:\t" & green & pkg & colorReset
+      echo success & "Package built:\t" & green & pkg & colorReset
       buildSysExists = true
     except:
       stdout.write "\n"
@@ -72,7 +72,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
       echo error & "Build Failed!"
   elif fileExists("bldit"):
     echoPkgit()
-    echo green & "[DETECTED] " & colorReset & "Build system:\t" & blue & "bldit"
+    echo detected & "Build system:\t" & blue & "bldit"
     echoPkgit()
     stdout.write blue & "Building "
     try:
@@ -80,7 +80,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
       stdout.write colorReset
       eraseLine()
       echoPkgit()
-      echo green & "[SUCCESS] " & colorReset & "Package built:\t" & green & pkg & colorReset
+      echo success & "Package built:\t" & green & pkg & colorReset
       buildSysExists = true
     except:
       stdout.write "\n"
@@ -90,7 +90,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
     for key, function in funcMap.pairs:
       if fileExists(key):
         echoPkgit()
-        echo green & "[DETECTED] " & colorReset & "Build system:\t" & blue & key
+        echo detected & "Build system:\t" & blue & key
         echoPkgit()
         stdout.write blue & "Building "
         try:
@@ -105,7 +105,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
             continue
           eraseLine()
           echoPkgit()
-          echo green & "[SUCCESS] " & colorReset & "Package built:\t" & green & pkg & colorReset
+          echo success & "Package built:\t" & green & pkg & colorReset
           buildSysExists = true
           break
         except:
@@ -122,7 +122,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
         echo path
         if path.endsWith("nimble"):
           echoPkgit()
-          echo green & "[DETECTED] " & colorReset & "Build system:\t" & blue & "nimble" & colorReset
+          echo detected & "Build system:\t" & blue & "nimble" & colorReset
           echoPkgit()
           stdout.write blue & "Building "
           try:
@@ -137,7 +137,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
               continue
             eraseLine()
             echoPkgit()
-            echo green & "[SUCCESS] " & colorReset & "Package built:\t" & green & pkg & colorReset
+            echo success & "Package built:\t" & green & pkg & colorReset
             buildSysExists = true
             break
           except:
@@ -211,7 +211,7 @@ proc buildPkg*(url: string, tagNum: string = "HEAD") =
   stdout.write colorReset
   eraseLine()
   echoPkgit()
-  echo green & "[SUCCESS] " & colorReset & "Installed binaries"
+  echo success & "Installed binaries"
 
   echoPkgit()
   echo "Do you want to create a desktop file for " & pkg & "?"
@@ -233,7 +233,7 @@ Terminal=false"""
     let file = appDir / pkg & ".desktop"
     writeFile(file, application)
     echoPkgit()
-    echo green & "[SUCCESS] " & colorReset & file & " created"
+    echo success & file & " created"
 
   echoPkgit()
   stdout.write blue & "Linking "
@@ -260,4 +260,4 @@ Terminal=false"""
   stdout.write colorReset
   eraseLine()
   echoPkgit()
-  echo green & "[SUCCESS] " & colorReset & "Created symlinks"
+  echo success & "Created symlinks"

@@ -1,4 +1,4 @@
-import os, parsetoml, strutils
+import os, parsetoml
 
 proc isUserLevel*(): bool =
   var configFile: File
@@ -118,4 +118,8 @@ const
   colorReset*: string = "\e[0m"
 
   # extra strings
+  success*:string = green & "[SUCCESS]" & colorReset & " "
+  skipped*:string = blue & "[SKIPPED]" & colorReset & " "
+  detected*:string = magenta & "[DETECTED]" & colorReset & " "
+  warning*:string = yellow & "[WARNING]" & colorReset & " "
   error*:string = red & "[ERROR]" & colorReset & " "

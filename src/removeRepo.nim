@@ -1,4 +1,4 @@
-import os, strutils
+import strutils
 import help, pkgFromUrl, searchPkgs, vars
 
 proc removeRepo*(repo: string) =
